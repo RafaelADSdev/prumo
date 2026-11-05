@@ -1,0 +1,552 @@
+/* Shared form shell: native dialogs must explicitly restore centering after CSS reset. */
+.editor-dialog,
+.confirmation-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: 660px;
+  max-width: calc(100vw - 40px);
+  height: fit-content;
+  max-height: calc(100dvh - 64px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #d7e1d0;
+  border-radius: 17px;
+  background: #fffefa;
+  box-shadow: 0 24px 90px #162e2830;
+  color: #243f2d;
+}
+.editor-dialog[open],
+.confirmation-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.editor-dialog::backdrop,
+.confirmation-dialog::backdrop {
+  background: #162a244d;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.editor-dialog[data-kind="client"],
+.editor-dialog[data-kind="vehicle"],
+.editor-dialog[data-kind="category"],
+.editor-dialog[data-kind="employee"],
+.editor-dialog[data-kind="payment"] {
+  width: 490px;
+}
+.editor-dialog[data-kind="service"] {
+  width: 760px;
+}
+.editor-dialog .dialog-heading,
+.confirmation-dialog .dialog-heading {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 24px 28px 21px;
+  border-bottom: 1px solid #e0e7d8;
+  gap: 20px;
+  align-items: flex-start;
+}
+.editor-dialog .dialog-heading h2,
+.confirmation-dialog .dialog-heading h2 {
+  font-family: Manrope, "Segoe UI", sans-serif;
+  font-size: 21px;
+  line-height: 1.35;
+  letter-spacing: -0.025em;
+  font-weight: 650;
+  color: #254c35;
+}
+.editor-dialog .dialog-heading p {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #61735c;
+  margin: 7px 0 0;
+}
+.editor-dialog .dialog-heading .icon-button {
+  margin: -3px -6px 0 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  color: #697a62;
+  flex-shrink: 0;
+}
+.editor-dialog .dialog-heading .icon-button:hover {
+  background: #edf3e7;
+  color: #214c32;
+}
+.editor-dialog .editor-form {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
+}
+.editor-dialog .form-content {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px 28px 8px;
+  scrollbar-gutter: stable;
+  scroll-padding: 20px;
+}
+.editor-dialog .field {
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0 0 19px;
+  gap: 8px;
+  color: #3b5c3d;
+  min-width: 0;
+}
+.editor-dialog .field > span {
+  font-weight: 600;
+}
+.editor-dialog input:not([type="checkbox"]),
+.editor-dialog select,
+.editor-dialog textarea {
+  font-size: 14px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #cdd9c5;
+  border-radius: 8px;
+  background: #fffefb;
+  color: #294a34;
+  width: 100%;
+  min-width: 0;
+  line-height: 1.5;
+}
+.editor-dialog input:not([type="checkbox"]):focus,
+.editor-dialog select:focus,
+.editor-dialog textarea:focus {
+  outline: 2px solid #6f8a62;
+  outline-offset: 2px;
+  border-color: #6f8a62;
+}
+.editor-dialog textarea {
+  min-height: 78px;
+  resize: vertical;
+}
+.editor-dialog .form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 18px;
+  align-items: start;
+}
+.editor-dialog .entry-value-grid {
+  grid-template-columns: 1fr 1.35fr 1fr;
+}
+.editor-dialog .field-hint {
+  font-size: 12px;
+  line-height: 1.75;
+  color: #65765d;
+  margin: 0 0 20px;
+}
+.editor-dialog .form-content > p.muted {
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0 0 20px;
+  color: #65765d;
+}
+.editor-dialog .check-label {
+  font-size: 13px;
+  line-height: 1.6;
+  gap: 11px;
+  margin: 2px 0 19px;
+  color: #4a6845;
+  align-items: center;
+}
+.editor-dialog input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  flex-shrink: 0;
+}
+.editor-dialog .form-details {
+  margin: 2px 0 16px;
+  border: 1px solid #dee6d6;
+  border-radius: 9px;
+  background: #f9fbf5;
+  padding: 0 16px;
+}
+.editor-dialog .form-details > summary {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 15px 0;
+  color: #476a42;
+  line-height: 1.5;
+  min-height: 48px;
+}
+.editor-dialog .form-details[open] > summary {
+  margin-bottom: 4px;
+  border-bottom: 1px solid #e4eadc;
+}
+.editor-dialog .form-details[open] > .field:first-of-type {
+  margin-top: 17px;
+}
+.editor-dialog .form-content h3 {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.6;
+  color: #355936;
+  margin: 4px 0 8px;
+}
+.editor-dialog .service-item {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.25fr;
+  gap: 15px;
+  padding: 17px;
+  border: 1px solid #dce5d2;
+  background: #f8fbf2;
+  border-radius: 10px;
+  margin: 16px 0;
+}
+.editor-dialog .service-item .field {
+  margin: 0;
+  gap: 7px;
+  font-size: 12px;
+}
+.editor-dialog .service-item .field:first-child {
+  grid-column: 1/-1;
+}
+.editor-dialog .service-item > button {
+  grid-column: 1/-1;
+  justify-self: end;
+  min-height: 32px;
+  font-size: 12px;
+  padding: 4px 10px;
+  background: transparent;
+  border-color: #d9e2d0;
+}
+.editor-dialog .service-item + button {
+  font-size: 13px;
+  min-height: 39px;
+  margin: 0 0 18px;
+}
+.editor-dialog .dialog-footer,
+.confirmation-dialog > .dialog-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  background: #fffefa;
+  border-top: 1px solid #dfe7d5;
+  margin: 0;
+  padding: 18px 28px 20px;
+  box-shadow: 0 -4px 12px #244b3210;
+}
+.editor-dialog .dialog-footer button,
+.confirmation-dialog .dialog-footer button {
+  font-size: 13px;
+  min-height: 43px;
+  padding: 10px 17px;
+  line-height: 1.5;
+}
+.editor-dialog .dialog-footer > .danger {
+  margin-right: auto;
+}
+.editor-dialog > .error {
+  flex: 0 0 auto;
+  max-height: 100px;
+  overflow: auto;
+  font-size: 13px;
+  margin: 12px 25px 0;
+  padding: 12px 15px;
+  border-radius: 8px;
+}
+.confirmation-dialog {
+  width: 490px;
+}
+.confirmation-dialog > .pad {
+  padding: 23px 28px;
+  font-size: 14px;
+  line-height: 1.8;
+  overflow: auto;
+  min-height: 0;
+}
+.confirmation-dialog .dialog-heading {
+  padding-bottom: 19px;
+}
+.confirmation-dialog .dialog-heading h2 {
+  font-size: 20px;
+}
+.file-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 17px;
+  min-height: 83px;
+  border: 1px dashed #bdcdb1;
+  background: #f7faf1;
+  border-radius: 10px;
+  cursor: pointer;
+  margin: 19px 0 17px;
+  text-align: left;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.file-picker:hover {
+  background: #edf4e5;
+  border-color: #7d9b6e;
+}
+.file-picker:focus-within {
+  outline: 2px solid #567c4b;
+  outline-offset: 3px;
+}
+.file-picker-symbol {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 37px;
+  height: 37px;
+  color: #55774c;
+  flex: 0 0 auto;
+}
+.file-picker-description {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+.file-picker-description strong {
+  font-size: 13px;
+  font-weight: 650;
+  color: #355b37;
+  line-height: 1.4;
+}
+.file-picker-description small {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #65785c;
+  overflow-wrap: anywhere;
+}
+.file-picker-action {
+  font-size: 12px;
+  color: #355e37;
+  font-weight: 600;
+  flex-shrink: 0;
+  padding: 6px 0 6px 9px;
+}
+.file-picker .sr-only {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.settings-grid {
+  align-items: start;
+  gap: 22px;
+}
+.settings-panel {
+  margin-bottom: 0;
+}
+.settings-panel > h2 {
+  font-size: 17px;
+}
+.settings-panel > p {
+  font-size: 13px;
+  line-height: 1.8;
+  max-width: 65ch;
+  margin: 11px 0 23px;
+}
+.settings-panel > .button,
+.settings-panel > button {
+  font-size: 13px;
+}
+.settings-panel .toolbar {
+  gap: 10px;
+  margin-bottom: 0;
+}
+.settings-panel .toolbar button {
+  font-size: 13px;
+}
+.settings-panel .inline-form {
+  margin-top: 18px;
+}
+.settings-panel .inline-form input {
+  width: 140px;
+  font-size: 13px;
+}
+.settings-grid + section,
+.settings-grid + .panel {
+  margin-top: 24px;
+}
+.audit-empty {
+  font-size: 13px;
+  line-height: 1.8;
+  color: #6a795f;
+  padding: 2px 0 8px;
+}
+.workspace .topbar {
+  height: 45px;
+  background: transparent;
+  border: 0;
+}
+.workspace .private-label {
+  font-size: 11px;
+  padding: 5px 11px;
+}
+.workspace main {
+  padding-top: 19px;
+}
+@media (min-width: 1900px) {
+  .workspace main {
+    max-width: 1800px;
+    margin-left: 0;
+    margin-right: auto;
+    padding-left: 44px;
+    padding-right: 44px;
+  }
+  .settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+  }
+  .settings-panel {
+    padding: 29px;
+  }
+  .settings-panel > p {
+    font-size: 14px;
+  }
+}
+@media (max-width: 760px) {
+  .editor-dialog,
+  .confirmation-dialog {
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 32px);
+    border-radius: 14px;
+  }
+  .editor-dialog .dialog-heading,
+  .confirmation-dialog .dialog-heading {
+    padding: 20px 20px 18px;
+    gap: 12px;
+  }
+  .editor-dialog .dialog-heading h2,
+  .confirmation-dialog .dialog-heading h2 {
+    font-size: 20px;
+    line-height: 1.35;
+  }
+  .editor-dialog .dialog-heading p {
+    font-size: 12px;
+    line-height: 1.65;
+    margin-top: 7px;
+  }
+  .editor-dialog .form-content {
+    padding: 22px 19px 6px;
+    scrollbar-gutter: auto;
+  }
+  .editor-dialog .form-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .editor-dialog .entry-value-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0 13px;
+  }
+  .editor-dialog .entry-value-grid .field:nth-child(2) {
+    grid-column: 1/-1;
+    grid-row: 2;
+  }
+  .editor-dialog .field {
+    margin-bottom: 18px;
+    font-size: 13px;
+  }
+  .editor-dialog .dialog-footer,
+  .confirmation-dialog > .dialog-footer {
+    padding: 15px 19px 17px;
+    gap: 9px;
+    flex-wrap: wrap;
+    box-shadow: 0 -3px 10px #244b3210;
+  }
+  .editor-dialog .dialog-footer button {
+    font-size: 12px;
+    padding: 10px 13px;
+    min-height: 42px;
+  }
+  .editor-dialog .dialog-footer .danger {
+    width: 100%;
+    margin: 0 0 3px;
+    min-height: 36px;
+  }
+  .editor-dialog .service-item {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+    padding: 15px;
+  }
+  .editor-dialog .service-item .field:last-of-type {
+    grid-column: 1/-1;
+  }
+  .editor-dialog .form-details {
+    padding: 0 13px;
+  }
+  .editor-dialog .form-details > summary {
+    font-size: 12px;
+  }
+  .editor-dialog .field-hint {
+    font-size: 12px;
+  }
+  .file-picker {
+    padding: 15px 12px;
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+  .file-picker-symbol {
+    width: 30px;
+  }
+  .file-picker-description {
+    min-width: 160px;
+  }
+  .file-picker-action {
+    padding-left: 37px;
+    font-size: 12px;
+  }
+  .settings-panel {
+    padding: 23px 20px;
+  }
+  .settings-panel > p {
+    font-size: 13px;
+  }
+  .settings-grid {
+    gap: 20px;
+  }
+  .workspace .topbar {
+    height: 61px;
+    background: #fafaf5;
+    border-bottom: 1px solid #e0e6d9;
+  }
+  .workspace main {
+    padding-top: 25px;
+  }
+  .workspace .private-label {
+    font-size: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .editor-dialog[open],
+  .confirmation-dialog[open] {
+    animation: none;
+  }
+}
+@media print {
+  .editor-dialog,
+  .confirmation-dialog,
+  .file-picker {
+    display: none !important;
+  }
+  .workspace main {
+    max-width: none;
+    padding: 0;
+  }
+}
+body:has(dialog[open]) {
+  overflow: hidden;
+}
+.settings-grid {
+  align-items: stretch;
+}
+.file-picker[aria-disabled="true"] {
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: wait;
+}

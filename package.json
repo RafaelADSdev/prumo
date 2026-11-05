@@ -1,0 +1,50 @@
+{
+  "name": "nautica-financeiro",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1",
+    "db:push": "prisma db push",
+    "admin": "tsx scripts/admin.ts",
+    "test": "vitest run",
+    "test:e2e": "tsx scripts/e2e.ts",
+    "setup": "node scripts/setup.mjs",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write src scripts tests",
+    "test:ui": "tsx scripts/e2e.ts --review-forms",
+    "test:motion": "tsx scripts/e2e.ts --review-forms --review-motion",
+    "supabase:check": "node scripts/check-supabase.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.0",
+    "bcryptjs": "^3.0.0",
+    "fast-xml-parser": "^5.12.0",
+    "fflate": "^0.8.3",
+    "lucide-react": "^0.468.0",
+    "next": "^16.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "recharts": "^3.0.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "playwright": "^1.56.0",
+    "prettier": "^3.9.10",
+    "prisma": "6.19.0",
+    "tailwindcss": "^4.1.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.1.0"
+  },
+  "overrides": {
+    "effect": "^3.20.0",
+    "deepmerge-ts": "^8.0.0"
+  },
+  "type": "module"
+}

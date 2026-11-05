@@ -1,0 +1,3134 @@
+"use client";
+import { LoginScreen } from "@/components/login-screen";
+import { CommandPalette } from "@/components/command-palette";
+import { useMotion } from "@/hooks/use-motion";
+import { changeView, revealDialog, dismissDialog } from "@/lib/motion";
+import { FilePicker } from "@/components/file-picker";
+import { Brand } from "@/components/brand";
+import {
+  useMemo,
+  useEffect,
+  useState,
+  useRef,
+  cloneElement,
+  isValidElement,
+} from "react";
+import {
+  Sparkles,
+  RotateCw,
+  LoaderCircle,
+  LayoutDashboard,
+  ArrowDownLeft,
+  ArrowUpRight,
+  ArrowLeftRight,
+  BriefcaseBusiness,
+  Repeat2,
+  Car,
+  ChartNoAxesCombined,
+  Settings,
+  Plus,
+  Search,
+  LogOut,
+  ArrowRight,
+  Download,
+  Check,
+  X,
+  Wallet,
+  Menu,
+  FileUp,
+  ShieldCheck,
+  Fuel,
+  Pencil,
+} from "lucide-react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  AreaChart,
+  Area,
+} from "recharts";
+import {
+  Entry,
+  money,
+  parseMoney,
+  totals,
+  balance,
+  status,
+  inPeriod,
+} from "@/lib/finance";
+type Rec = Record<string, any>;
+const months = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+];
+const nav = [
+  ["overview", "Visão geral", LayoutDashboard],
+  ["entries", "Lançamentos", ArrowLeftRight],
+  ["services", "Serviços e clientes", BriefcaseBusiness],
+  ["fixed", "Despesas fixas", Repeat2],
+  ["vehicles", "Veículos", Car],
+  ["reports", "Relatórios", ChartNoAxesCombined],
+  ["settings", "Configurações", Settings],
+] as const;
+const defaults = {
+  name: "",
+  years: [2026, 2027],
+  initialBalance: null,
+  initialDate: null,
+  goal: null,
+};
+const categories = [
+  "Serviços",
+  "Vendas",
+  "Alimentação",
+  "Materiais",
+  "Combustível",
+  "Manutenção de veículos",
+  "Despesas fixas",
+  "Impostos",
+  "Contador",
+  "Divulgação",
+  "Colaboradores",
+  "Outros",
+];
+const iso = () =>
+  new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+const dec = (v: number | null | undefined) =>
+  v == null ? "" : (v / 100).toFixed(2).replace(".", ",");
+const br = (s: string | null) =>
+  s ? s.split("-").reverse().join("/") : "Não informada";
+async function api(url: string, body?: any, method = "POST") {
+  const r = await fetch(
+    url,
+    body
+      ? {
+          method,
+          headers:
+            body instanceof FormData
+              ? {}
+              : { "Content-Type": "application/json" },
+          body: body instanceof FormData ? body : JSON.stringify(body),
+        }
+      : { method },
+  );
+  const data = await r.json();
+  if (!r.ok) throw Error(data.error || "Não foi possível concluir.");
+  return data;
+}
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      {isValidElement(children)
+        ? cloneElement(children as React.ReactElement<any>, {
+            "aria-label": label,
+          })
+        : children}
+    </label>
+  );
+}
+export default function App({
+  loggedIn,
+  needsSetup = false,
+}: {
+  loggedIn: boolean;
+  needsSetup?: boolean;
+}) {
+  const motion = useMotion();
+  const [commandOpen, setCommandOpen] = useState(false),
+    [hasLoaded, setHasLoaded] = useState(false);
+  const [backupFilename, setBackupFilename] = useState("");
+  const [compactChart, setCompactChart] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width:760px)");
+    const update = () => setCompactChart(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  const [logged, setLogged] = useState(loggedIn),
+    [records, setRecords] = useState<Rec[]>([]),
+    [audit, setAudit] = useState<Rec[]>([]),
+    [loading, setLoading] = useState(loggedIn),
+    [busy, setBusy] = useState(false),
+    [notice, setNotice] = useState(""),
+    [error, setError] = useState("");
+  const [page, setPage] = useState("overview"),
+    [year, setYear] = useState("2026"),
+    [month, setMonth] = useState("all"),
+    [basis, setBasis] = useState("cash"),
+    [search, setSearch] = useState(""),
+    [filter, setFilter] = useState(""),
+    [category, setCategory] = useState(""),
+    [vehicle, setVehicle] = useState(""),
+    [menu, setMenu] = useState(false);
+  const [editor, setEditor] = useState<Rec | null>(null),
+    [form, setForm] = useState<Rec>({}),
+    [payment, setPayment] = useState<Entry | null>(null),
+    [confirm, setConfirm] = useState<Rec | null>(null),
+    [importFile, setImportFile] = useState<File | null>(null),
+    [preview, setPreview] = useState<Rec | null>(null),
+    [restore, setRestore] = useState<Rec | null>(null);
+  const dialog = useRef<HTMLDialogElement>(null),
+    confirmation = useRef<HTMLDialogElement>(null);
+  const settings = {
+    ...defaults,
+    ...records.find((r) => r.kind === "settings"),
+  };
+  const entries = useMemo(
+    () => records.filter((r) => r.kind === "entry") as Entry[],
+    [records],
+  );
+  const clients = records.filter((r) => r.kind === "client"),
+    vehicles = records.filter((r) => r.kind === "vehicle"),
+    employees = records.filter((r) => r.kind === "employee");
+  const cats = Array.from(
+    new Set([
+      ...categories,
+      ...records.filter((r) => r.kind === "category").map((r) => r.name),
+      ...entries.map((e) => e.category),
+    ]),
+  );
+  const years = Array.from(
+    new Set([
+      ...settings.years,
+      ...entries.map((e) => Number(e.competence.slice(0, 4))),
+      Number(year),
+    ]),
+  ).sort();
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    setPage(q.get("page") || "overview");
+    setYear(q.get("year") || "2026");
+    setMonth(q.get("month") || "all");
+  }, []);
+  useEffect(() => {
+    if (logged)
+      history.replaceState(
+        null,
+        "",
+        "?" + new URLSearchParams({ page, year, month }),
+      );
+  }, [page, year, month, logged]);
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      const r = await api("/api/data", undefined, "GET");
+      setRecords(r.records);
+      setAudit(r.audit);
+      setHasLoaded(true);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (logged) void refresh();
+  }, [logged]);
+  useEffect(() => {
+    if (editor || payment) {
+      dialog.current?.showModal();
+      const firstField = dialog.current?.querySelector<HTMLElement>(
+        "input:not([type=checkbox]),select,textarea",
+      );
+      firstField?.focus({ preventScroll: true });
+      const body = dialog.current?.querySelector(".form-content");
+      if (body) body.scrollTop = 0;
+      if (dialog.current) revealDialog(dialog.current);
+    } else dialog.current?.close();
+  }, [editor, payment]);
+  useEffect(() => {
+    if (confirm) {
+      confirmation.current?.showModal();
+      if (confirmation.current) revealDialog(confirmation.current);
+    } else confirmation.current?.close();
+  }, [confirm]);
+  async function run(fn: () => Promise<void>, msg = "Alterações salvas.") {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await fn();
+      setNotice(msg);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const closeEditor = () =>
+    void dismissDialog(dialog.current, () => {
+      setEditor(null);
+      setPayment(null);
+    });
+  const go = (p: string, f = "") =>
+    changeView(() => {
+      setPage(p);
+      setFilter(f);
+      setCategory("");
+      setVehicle("");
+      setSearch("");
+      setMenu(false);
+    });
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(""), 6000);
+    return () => clearTimeout(t);
+  }, [notice]);
+  useEffect(() => {
+    if (!logged) return;
+    const key = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        if (!dialog.current?.open && !confirmation.current?.open)
+          setCommandOpen((v) => !v);
+      }
+    };
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
+  }, [logged]);
+  const reportEntries = useMemo(
+    () =>
+      entries.filter(
+        (e) =>
+          !e.cancelled &&
+          (basis === "cash"
+            ? e.payments.some((p) => !p.voided && inPeriod(p.date, year, month))
+            : !e.review &&
+              e.amount !== null &&
+              inPeriod(e.competence, year, month)),
+      ),
+    [entries, basis, year, month],
+  );
+  const periodEntries = entries.filter(
+    (e) => !e.cancelled && inPeriod(e.competence, year, month),
+  );
+  const cash = totals(entries, year, month),
+    report = totals(entries, year, month, basis);
+  const pending = periodEntries.filter(
+    (e) => !e.review && balance(e) !== null && (balance(e) || 0) > 0,
+  );
+  const receivable = pending
+      .filter((e) => e.type === "income")
+      .reduce((s, e) => s + (balance(e) || 0), 0),
+    payable = pending
+      .filter((e) => e.type === "expense")
+      .reduce((s, e) => s + (balance(e) || 0), 0);
+  const review = periodEntries.filter((e) => e.review || e.amount === null);
+  const monthly = useMemo(
+    () =>
+      months.map((name, i) => {
+        const t = totals(
+          entries,
+          year,
+          String(i + 1).padStart(2, "0"),
+          page === "reports" ? basis : "cash",
+        );
+        return {
+          name: name.slice(0, 3),
+          Entradas: t.income / 100,
+          Saídas: t.expense / 100,
+          Fluxo: t.net / 100,
+        };
+      }),
+    [entries, year, page, basis],
+  );
+  const evolution = useMemo(() => {
+    let cumulative = 0;
+    return monthly.map((d) => ({ ...d, Fluxo: (cumulative += d.Fluxo) }));
+  }, [monthly]);
+  const filtered = entries.filter((e) => {
+    const period =
+      filter.startsWith("cash-") || (page === "reports" && basis === "cash")
+        ? e.payments.some((p) => !p.voided && inPeriod(p.date, year, month))
+        : inPeriod(e.competence, year, month);
+    const match =
+      !filter ||
+      (["income", "cash-income"].includes(filter) &&
+        e.type === "income" &&
+        !e.cancelled) ||
+      (["expense", "cash-expense"].includes(filter) &&
+        e.type === "expense" &&
+        !e.cancelled) ||
+      (filter === "receivable" &&
+        e.type === "income" &&
+        !e.review &&
+        !e.cancelled &&
+        (balance(e) || 0) > 0) ||
+      (filter === "payable" &&
+        e.type === "expense" &&
+        !e.review &&
+        !e.cancelled &&
+        (balance(e) || 0) > 0) ||
+      (filter === "review" &&
+        (e.review || e.amount === null) &&
+        !e.cancelled) ||
+      (filter === "cancelled" && e.cancelled);
+    return (
+      period &&
+      match &&
+      (!search ||
+        (e.description + " " + e.party + " " + e.notes)
+          .toLowerCase()
+          .includes(search.toLowerCase())) &&
+      (!category || e.category === category) &&
+      (!vehicle || e.vehicleId === vehicle)
+    );
+  });
+  function open(kind: string, r?: Rec, preset: Rec = {}) {
+    setError("");
+    setPayment(null);
+    setEditor({ kind, id: r?.id });
+    const d = r || {};
+    setForm({
+      type: "expense",
+      description: "",
+      category: "Outros",
+      amount: "",
+      discount: "0,00",
+      competence:
+        year + "-" + (month === "all" ? iso().slice(5, 7) : month) + "-01",
+      due: "",
+      party: "",
+      method: "Pix",
+      notes: "",
+      review: false,
+      confirmedZero: false,
+      payments: [],
+      vehicleId: "",
+      employeeId: "",
+      serviceId: "",
+      recurrenceId: "",
+      source: "",
+      cancelled: false,
+      name: "",
+      model: "",
+      plate: "",
+      contact: "",
+      clientId: "",
+      date: iso(),
+      status: "Em andamento",
+      items: [
+        { description: "Serviço", quantity: "1", unit: "un.", amount: null },
+      ],
+      day: 10,
+      start: iso(),
+      end: "",
+      active: true,
+      base: "",
+      extras: "0,00",
+      scope: "one",
+      ...d,
+      ...preset,
+      ...(["entry", "recurrence"].includes(kind)
+        ? {
+            amount: dec(d.amount ?? preset.amount),
+            discount: dec(d.discount ?? 0),
+          }
+        : {}),
+      ...(kind === "service" ? { discount: dec(d.discount ?? 0) } : {}),
+      ...(kind === "settings"
+        ? {
+            name: settings.name,
+            initialBalance: dec(settings.initialBalance),
+            initialDate: settings.initialDate || "",
+            goal: dec(settings.goal),
+            years: settings.years,
+          }
+        : {}),
+    });
+  }
+  const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editor) return;
+    await run(async () => {
+      const kind = editor.kind;
+      let data = { ...form };
+      if (["entry", "recurrence"].includes(kind))
+        data.amount = data.amount === "" ? null : parseMoney(data.amount);
+      if (["entry", "service"].includes(kind))
+        data.discount = parseMoney(data.discount || "0");
+      if (kind === "entry") data.due = data.due || null;
+      if (kind === "recurrence") {
+        data.day = Number(data.day);
+        data.end = data.end || null;
+      }
+      if (kind === "service") {
+        data.competence = data.competence || data.date;
+        data.date = data.date || null;
+        data.items = data.items.map((i: any) => ({
+          ...i,
+          amount:
+            i.amount === "" || i.amount === null
+              ? null
+              : typeof i.amount === "number"
+                ? i.amount
+                : parseMoney(i.amount),
+        }));
+      }
+      if (kind === "payroll")
+        for (const k of ["base", "extras", "discount"])
+          data[k] = parseMoney(data[k] || "0");
+      if (kind === "settings") {
+        data.initialBalance =
+          data.initialBalance === "" ? null : parseMoney(data.initialBalance);
+        data.initialDate = data.initialDate || null;
+        data.goal = data.goal === "" ? null : parseMoney(data.goal);
+      }
+      await api("/api/data", { kind, id: editor.id, data, scope: form.scope });
+      setEditor(null);
+      await refresh();
+    });
+  }
+  function table(rows: Entry[], compact = false) {
+    return (
+      <div className="table-scroll">
+        {compact && (
+          <div className="mobile-transactions">
+            {rows.map((e) => (
+              <details key={e.id}>
+                <summary>
+                  <span>
+                    {e.description}
+                    <small>{status(e)}</small>
+                  </span>
+                  <strong
+                    className={e.type === "income" ? "positive" : "outgoing"}
+                  >
+                    {e.amount === null
+                      ? "Sem preço"
+                      : money(e.amount - e.discount)}
+                  </strong>
+                </summary>
+                <p>
+                  {e.category} · {br(e.competence)} · {e.party || "Sem vínculo"}
+                </p>
+                <button onClick={() => open("entry", e)}>Abrir registro</button>
+              </details>
+            ))}
+          </div>
+        )}
+        <table className={compact ? "compact-table" : "entry-table"}>
+          <thead>
+            <tr>
+              <th>Descrição / origem</th>
+              <th>Categoria</th>
+              <th>Competência</th>
+              <th>Valor devido</th>
+              <th>Situação</th>
+              {!compact && <th>Em aberto</th>}
+              <th>
+                <span className="sr-only">Ações</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((e) => (
+              <tr key={e.id}>
+                <td>
+                  <button
+                    className="text-button row-title"
+                    onClick={() => open("entry", e)}
+                  >
+                    {e.description}
+                  </button>
+                  <small>
+                    {e.party ||
+                      vehicles.find((v) => v.id === e.vehicleId)?.name ||
+                      "Sem vínculo"}
+                    {e.source ? " · Importado" : ""}
+                  </small>
+                </td>
+                <td>{e.category}</td>
+                <td>{br(e.competence)}</td>
+                <td className={e.type === "income" ? "positive" : "outgoing"}>
+                  {e.amount === null
+                    ? "Não informado"
+                    : money(e.amount - e.discount)}
+                </td>
+                <td>
+                  <span
+                    className={
+                      "status " +
+                      (status(e) === "Quitado"
+                        ? "settled"
+                        : e.review
+                          ? "review"
+                          : "")
+                    }
+                  >
+                    {status(e)}
+                  </span>
+                </td>
+                {!compact && (
+                  <td>{balance(e) === null ? "—" : money(balance(e)!)}</td>
+                )}
+                <td>
+                  <div className="row-actions">
+                    {!e.cancelled &&
+                      e.amount !== null &&
+                      (balance(e) || 0) > 0 && (
+                        <button
+                          className="icon-button"
+                          title="Registrar baixa"
+                          aria-label={"Registrar baixa de " + e.description}
+                          onClick={() => {
+                            setEditor(null);
+                            setPayment(e);
+                            setForm({
+                              amount: dec(balance(e)),
+                              date: iso(),
+                              method: "Pix",
+                            });
+                          }}
+                        >
+                          <Check size={17} />
+                        </button>
+                      )}
+                    <button
+                      className="icon-button"
+                      aria-label={"Editar " + e.description}
+                      onClick={() => open("entry", e)}
+                    >
+                      <Pencil size={15} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {rows.length === 0 && (
+          <div className="empty">
+            <Wallet size={28} />
+            <h3>Nenhum lançamento neste período</h3>
+            <p>Registre uma movimentação ou escolha outro período.</p>
+            <button onClick={() => open("entry")}>Criar lançamento</button>
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (!logged)
+    return (
+      <LoginScreen
+        busy={busy}
+        error={error}
+        needsSetup={needsSetup}
+        onLogin={(email, password) =>
+          void run(async () => {
+            await api("/api/auth", { email, password });
+            setLogged(true);
+          })
+        }
+      />
+    );
+  return (
+    <div className="shell">
+      <aside className={menu ? "sidebar expanded" : "sidebar"}>
+        <a
+          href={`?page=overview&year=${year}&month=${month}`}
+          className="brand"
+        >
+          <Brand />
+        </a>
+        <p className="brand-tagline">Finanças em equilíbrio.</p>
+        <nav id="primary-navigation" aria-label="Navegação principal">
+          <span
+            className="nav-track"
+            aria-hidden="true"
+            style={{
+              transform: `translateY(${
+                Math.max(
+                  0,
+                  nav.findIndex((n) => n[0] === page),
+                ) * 53
+              }px)`,
+            }}
+          />
+          {nav.map(([id, label, Icon]) => (
+            <button
+              key={id}
+              className={page === id ? "active" : ""}
+              aria-current={page === id ? "page" : undefined}
+
+              onClick={() => go(id)}
+            >
+              <Icon size={19} />
+              {label}
+              {page === id && <span className="nav-dot" />}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-bottom">
+          <div className="local-note">
+            <ShieldCheck size={18} />
+            <div>
+              Seu espaço privado<small>Dados salvos neste computador</small>
+            </div>
+          </div>
+          <button
+            onClick={() =>
+              void run(async () => {
+                await api("/api/auth", {}, "DELETE");
+                changeView(() => {
+                  setLogged(false);
+                  setRecords([]);
+                  setHasLoaded(false);
+                });
+              })
+            }
+          >
+            <LogOut size={17} />
+            Encerrar sessão
+          </button>
+        </div>
+      </aside>
+      <div className="workspace">
+        <header className="topbar">
+          <div>
+            <button
+              className="mobile-menu icon-button"
+              onClick={() => setMenu(!menu)}
+              aria-label="Abrir navegação"
+              aria-expanded={menu}
+              aria-controls="primary-navigation"
+            >
+              <Menu />
+            </button>
+          </div>
+          <div className="workspace-tools">
+            <button
+              className="command-trigger"
+              aria-label="Abrir navegação rápida"
+              onClick={() => setCommandOpen(true)}
+            >
+              <Search size={17} />
+              <span>Ir para…</span>
+              <kbd>Ctrl K</kbd>
+            </button>
+            <button
+              className="icon-button refresh-button"
+              disabled={loading}
+              aria-label="Atualizar dados"
+              title="Atualizar dados"
+              onClick={() => void refresh()}
+            >
+              <RotateCw size={17} className={loading ? "spin" : ""} />
+            </button>
+          </div>
+          <span className="private-label">
+            <span />
+            Sessão protegida
+          </span>
+        </header>
+        <main
+          className={`page-content${page === "settings" ? " settings-content" : ""}`}
+          data-loading={loading && !hasLoaded}
+          aria-busy={loading}
+        >
+          <div className="page-heading">
+            <div>
+              <h1>{nav.find((n) => n[0] === page)?.[1]}</h1>
+              <p>
+                {page === "overview"
+                  ? "Uma visão clara do que entra, do que sai e do que vem pela frente."
+                  : page === "entries"
+                    ? "Compromissos, baixas e histórico em um só lugar."
+                    : (
+                        {
+                          services:
+                            "Cadastre clientes e acompanhe seus serviços e recebimentos.",
+                          fixed:
+                            "Organize as contas que se repetem todos os meses.",
+                          vehicles:
+                            "Acompanhe abastecimentos, manutenção e custos por veículo.",
+                          reports:
+                            "Compare caixa e competência e consulte os registros de origem.",
+                          settings:
+                            "Personalize o financeiro e cuide dos seus dados.",
+                        } as Rec
+                      )[page] || "Organize seu financeiro."}
+              </p>
+            </div>
+            <div className="heading-actions">
+              <div className="period">
+                <select
+                  aria-label="Ano"
+                  value={year}
+                  onChange={(e) => setYear(e.target.value)}
+                >
+                  {years.map((y) => (
+                    <option key={y}>{y}</option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Mês"
+                  value={month}
+                  onChange={(e) => setMonth(e.target.value)}
+                >
+                  <option value="all">Ano completo</option>
+                  {months.map((m, i) => (
+                    <option value={String(i + 1).padStart(2, "0")} key={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button className="primary" onClick={() => open("entry")}>
+                <Plus size={18} />
+                Novo lançamento
+              </button>
+            </div>
+          </div>
+          {page === "overview" && !loading && entries.length === 0 && (
+            <section className="first-step">
+              <span className="first-step-icon">
+                <Wallet size={25} />
+              </span>
+              <div>
+                <h2>Um começo simples. Uma visão mais clara.</h2>
+                <p>
+                  Adicione seu primeiro lançamento ou traga o histórico da sua
+                  planilha.
+                </p>
+              </div>
+              <button onClick={() => go("settings")}>
+                <FileUp size={16} />
+                Importar planilha
+                <ArrowRight size={16} />
+              </button>
+            </section>
+          )}
+          {error && (
+            <div className="error alert" role="alert">
+              {error}
+              <button
+                className="icon-button"
+                onClick={() => setError("")}
+                aria-label="Fechar erro"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+          {notice && (
+            <div className="success alert" role="status">
+              <Check size={16} />
+              {notice}
+              <button
+                className="icon-button"
+                onClick={() => setNotice("")}
+                aria-label="Fechar aviso"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+          {loading && (
+            <div role="status" className="loading">
+              <LoaderCircle size={15} className="spin" />
+              <span>Atualizando dados…</span>
+            </div>
+          )}
+          {(page === "overview" || page === "reports") && (
+            <>
+              <div className="section-meta">
+                <span>
+                  {month === "all"
+                    ? "Janeiro a dezembro"
+                    : months[Number(month) - 1]}{" "}
+                  de {year}
+                </span>
+                <span>
+                  {page === "overview"
+                    ? "Caixa · valores efetivamente movimentados"
+                    : basis === "cash"
+                      ? "Caixa · pela data da baixa"
+                      : "Competência · pelo mês da operação"}
+                </span>
+              </div>
+              <div className="metrics">
+                {[
+                  [
+                    page === "reports" && basis === "accrual"
+                      ? "Entradas registradas"
+                      : "Recebimentos efetivos",
+                    (page === "reports" ? report : cash).income,
+                    "cash-income",
+                    ArrowDownLeft,
+                    "positive",
+                  ],
+                  [
+                    page === "reports" && basis === "accrual"
+                      ? "Saídas registradas"
+                      : "Pagamentos efetivos",
+                    (page === "reports" ? report : cash).expense,
+                    "cash-expense",
+                    ArrowUpRight,
+                    "outgoing",
+                  ],
+                  [
+                    "Fluxo líquido do período",
+                    (page === "reports" ? report : cash).net,
+                    "",
+                    ArrowLeftRight,
+                    "accent",
+                  ],
+                ].map(([label, value, f, Icon, color]: any) => (
+                  <button
+                    className="metric"
+                    key={label}
+                    onClick={() =>
+                      go(
+                        "entries",
+                        page === "reports" && basis === "accrual"
+                          ? f === "cash-income"
+                            ? "income"
+                            : "expense"
+                          : f,
+                      )
+                    }
+                  >
+                    <div>
+                      <span>{label}</span>
+                      <Icon size={20} className={color} />
+                    </div>
+                    <strong>{money(value)}</strong>
+                    <small>
+                      {label.startsWith("Fluxo")
+                        ? "Resultado gerencial do período"
+                        : "Ver lançamentos"}
+                      <ArrowRight size={13} />
+                    </small>
+                  </button>
+                ))}
+              </div>
+              <div className="balance-note">
+                <Wallet size={16} />
+                {settings.initialBalance === null
+                  ? "Saldo inicial não informado. Os valores representam a movimentação registrada."
+                  : `Saldo inicial de ${money(settings.initialBalance)} em ${br(settings.initialDate)}. Movimentação registrada não confirma saldo bancário.`}
+              </div>
+              {page === "reports" && (
+                <div className="toolbar">
+                  <div className="segmented">
+                    <button
+                      className={basis === "cash" ? "selected" : ""}
+                      onClick={() => setBasis("cash")}
+                    >
+                      Caixa
+                    </button>
+                    <button
+                      className={basis === "accrual" ? "selected" : ""}
+                      onClick={() => setBasis("accrual")}
+                    >
+                      Competência
+                    </button>
+                  </div>
+                  <a
+                    className="button"
+                    href={`/api/export?year=${year}&month=${month}&basis=${basis}`}
+                  >
+                    <Download size={16} />
+                    Exportar CSV
+                  </a>
+                  <button onClick={() => window.print()}>
+                    Imprimir relatório
+                  </button>
+                </div>
+              )}
+              <div className="charts">
+                <section className="panel comparison">
+                  <div className="panel-heading">
+                    <div>
+                      <h2>Entradas e saídas</h2>
+                      <p>Comparação mensal · {year}</p>
+                    </div>
+                    <div className="legend">
+                      <span>
+                        <i className="green-dot" />
+                        Entradas
+                      </span>
+                      <span>
+                        <i className="orange-dot" />
+                        Saídas
+                      </span>
+                    </div>
+                  </div>
+                  <div className="chart">
+                    {monthly.some((d) => d.Entradas || d.Saídas) ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          key={
+                            year +
+                            "-" +
+                            basis +
+                            "-" +
+                            monthly
+                              .map((d) => d.Entradas + "," + d.Saídas)
+                              .join(";")
+                          }
+                          data={monthly}
+                          barGap={5}
+                        >
+                          <CartesianGrid
+                            vertical={false}
+                            stroke="#e6e9e0"
+                            strokeDasharray="3 5"
+                          />
+                          <XAxis
+                            dataKey="name"
+                            interval={0}
+                            angle={compactChart ? -40 : 0}
+                            textAnchor={compactChart ? "end" : "middle"}
+                            height={compactChart ? 48 : 30}
+                            tickMargin={compactChart ? 10 : 8}
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fill: "#596e54", fontSize: 12 }}
+                          />
+                          <YAxis
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fill: "#596e54", fontSize: 12 }}
+                            tickFormatter={(n) =>
+                              n >= 1000 ? `${n / 1000} mil` : String(n)
+                            }
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              background: "#fffefa",
+                              border: "1px solid #d9e0d6",
+                              borderRadius: 8,
+                              color: "#203e30",
+                            }}
+                            formatter={(v) =>
+                              money(Math.round(Number(v) * 100))
+                            }
+                          />
+                          <Bar
+                            isAnimationActive={false}
+                            dataKey="Entradas"
+                            fill="#34765a"
+                            radius={[3, 3, 0, 0]}
+                            maxBarSize={18}
+                          />
+                          <Bar
+                            isAnimationActive={false}
+                            dataKey="Saídas"
+                            fill="#b0795d"
+                            radius={[3, 3, 0, 0]}
+                            maxBarSize={18}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="empty chart-placeholder">
+                        <ChartNoAxesCombined size={32} />
+                        <h3>Seu fluxo vai ganhar forma aqui.</h3>
+                        <p>
+                          Os recebimentos e pagamentos registrados aparecem mês
+                          a mês, sem complicação.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </section>
+                <section className="panel">
+                  <div className="panel-heading">
+                    <div>
+                      <h2>Para onde foi o dinheiro</h2>
+                      <p>Despesas por categoria · período selecionado</p>
+                    </div>
+                  </div>
+                  {Object.values(report.categories).some((n) => n > 0) ? (
+                    <div className="category-list">
+                      {Object.entries(
+                        (page === "reports" ? report : cash).categories,
+                      )
+                        .filter(([, n]) => n > 0)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([c, n], i) => (
+                          <button
+                            key={c}
+                            onClick={() => {
+                              go(
+                                "entries",
+                                page === "overview" || basis === "cash"
+                                  ? "cash-expense"
+                                  : "expense",
+                              );
+                              setCategory(c);
+                            }}
+                          >
+                            <span>
+                              <i
+                                style={{
+                                  background: [
+                                    "#2d6a51",
+                                    "#b0795d",
+                                    "#34765a",
+                                    "#769bcf",
+                                    "#d3bc7d",
+                                  ][i % 5],
+                                }}
+                              />
+                              {c}
+                            </span>
+                            <strong>{money(n)}</strong>
+                            <div
+                              className="category-bar"
+                              style={{
+                                width:
+                                  (n /
+                                    Math.max(
+                                      1,
+                                      (page === "reports" ? report : cash)
+                                        .expense,
+                                    )) *
+                                    100 +
+                                  "%",
+                              }}
+                            />
+                          </button>
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="empty chart-empty">
+                      <ChartNoAxesCombined size={30} />
+                      <h3>O destino aparece aqui</h3>
+                      <p>Registre pagamentos para visualizar suas despesas.</p>
+                    </div>
+                  )}
+                </section>
+              </div>
+              <div className="pending-strip">
+                <button onClick={() => go("entries", "receivable")}>
+                  <span>A receber</span>
+                  <strong>{money(receivable)}</strong>
+                  <ArrowRight size={17} />
+                </button>
+                <button onClick={() => go("entries", "payable")}>
+                  <span>A pagar</span>
+                  <strong>{money(payable)}</strong>
+                  <ArrowRight size={17} />
+                </button>
+                <button onClick={() => go("entries", "review")}>
+                  <span>Precisam de conferência</span>
+                  <strong>{review.length} registros</strong>
+                  <ArrowRight size={17} />
+                </button>
+              </div>
+              {page === "overview" ? (
+                <div className="lower-grid">
+                  <section className="panel">
+                    <div className="panel-heading">
+                      <h2>Lançamentos recentes</h2>
+                      <button
+                        className="text-button"
+                        onClick={() => go("entries")}
+                      >
+                        Ver todos
+                        <ArrowRight size={14} />
+                      </button>
+                    </div>
+                    {table(periodEntries.slice(-5).reverse(), true)}
+                  </section>
+                  <section className="panel">
+                    <div className="panel-heading">
+                      <h2>Ações rápidas</h2>
+                    </div>
+                    <div className="quick-actions">
+                      <button
+                        onClick={() =>
+                          open("entry", undefined, {
+                            type: "income",
+                            category: "Serviços",
+                          })
+                        }
+                      >
+                        <ArrowDownLeft className="positive" />
+                        Registrar entrada
+                        <Plus size={16} />
+                      </button>
+                      <button onClick={() => open("entry")}>
+                        <ArrowUpRight className="outgoing" />
+                        Registrar saída
+                        <Plus size={16} />
+                      </button>
+                      <button
+                        onClick={() =>
+                          open("entry", undefined, {
+                            category: "Combustível",
+                            fuel: {
+                              liters: "",
+                              odometer: "",
+                              station: "",
+                              fuelType: "",
+                            },
+                          })
+                        }
+                      >
+                        <Fuel className="accent" />
+                        Abastecimento
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                    <h3 className="minor-title">Próximas pendências</h3>
+                    {pending
+                      .sort((a, b) =>
+                        (a.due || "9999").localeCompare(b.due || "9999"),
+                      )
+                      .slice(0, 3)
+                      .map((e) => (
+                        <button
+                          key={e.id}
+                          className="pending-item"
+                          onClick={() => open("entry", e)}
+                        >
+                          <span>
+                            {e.description}
+                            <small>
+                              {e.due ? br(e.due) : "Sem vencimento"}
+                            </small>
+                          </span>
+                          <strong>{money(balance(e)!)}</strong>
+                        </button>
+                      ))}
+                    {!pending.length && (
+                      <p className="muted pad">
+                        Sem compromissos confirmados em aberto.
+                      </p>
+                    )}
+                  </section>
+                </div>
+              ) : (
+                <>
+                  <section className="panel">
+                    <div className="panel-heading">
+                      <h2>Evolução do fluxo registrado</h2>
+                      <span className="muted">
+                        Acumulado no ano · não é saldo bancário
+                      </span>
+                    </div>
+                    <div className="chart">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={evolution}>
+                          <XAxis dataKey="name" tick={{ fill: "#596e54" }} />
+                          <YAxis tick={{ fill: "#596e54" }} />
+                          <Tooltip
+                            formatter={(v) =>
+                              money(Math.round(Number(v) * 100))
+                            }
+                          />
+                          <Area
+                            isAnimationActive={false}
+                            dataKey="Fluxo"
+                            stroke="#2d6a51"
+                            fill="#2d6a51"
+                            fillOpacity={0.12}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </section>
+                  <div className="report-groups">
+                    {[
+                      "category",
+                      "vehicleId",
+                      "employeeId",
+                      "recurrenceId",
+                    ].map((key) => (
+                      <section className="panel" key={key}>
+                        <div className="panel-heading">
+                          <h2>
+                            {
+                              {
+                                category: "Por categoria",
+                                vehicleId: "Por veículo",
+                                employeeId: "Colaboradores",
+                                recurrenceId: "Despesas recorrentes",
+                              }[key]
+                            }
+                          </h2>
+                        </div>
+                        {!reportEntries.some((e) =>
+                          Boolean((e as any)[key]),
+                        ) && (
+                          <p className="empty-report">
+                            {key === "employeeId"
+                              ? "Nenhum pagamento de colaborador neste período."
+                              : key === "vehicleId"
+                                ? "Nenhum custo de veículo identificado neste período."
+                                : key === "recurrenceId"
+                                  ? "Nenhuma despesa recorrente neste período."
+                                  : "Nenhum valor confirmado nesta perspectiva e período."}
+                          </p>
+                        )}
+                        {Array.from(
+                          new Set(
+                            reportEntries
+                              .map((e) => (e as any)[key])
+                              .filter(Boolean),
+                          ),
+                        ).map((value) => {
+                          const es = reportEntries.filter(
+                            (e) => (e as any)[key] === value,
+                          );
+                          const t = totals(es, year, month, basis);
+                          return (
+                            <button
+                              className="summary-row"
+                              key={String(value)}
+                              onClick={() => {
+                                go(
+                                  "entries",
+                                  basis === "cash" ? "cash-expense" : "expense",
+                                );
+                                if (key === "category")
+                                  setCategory(String(value));
+                                if (key === "vehicleId")
+                                  setVehicle(String(value));
+                              }}
+                            >
+                              <span>
+                                {records.find((r) => r.id === value)?.name ||
+                                  records.find((r) => r.id === value)
+                                    ?.description ||
+                                  value}
+                              </span>
+                              <strong>
+                                <small>Entradas {money(t.income)}</small>Saídas{" "}
+                                {money(t.expense)}
+                              </strong>
+                            </button>
+                          );
+                        })}
+                      </section>
+                    ))}
+                  </div>
+                  <div className="toolbar pad">
+                    <div className="search">
+                      <Search size={16} />
+                      <input
+                        aria-label="Pesquisar relatório"
+                        placeholder="Pesquisar registros de origem"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                    </div>
+                    <select
+                      aria-label="Categoria do relatório"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                    >
+                      <option value="">Todas as categorias</option>
+                      {cats.map((c) => (
+                        <option key={c}>{c}</option>
+                      ))}
+                    </select>
+                    <a
+                      className="button"
+                      href={
+                        "/api/export?" +
+                        new URLSearchParams({
+                          year,
+                          month,
+                          basis,
+                          search,
+                          category,
+                          vehicle,
+                        })
+                      }
+                    >
+                      Exportar dados filtrados
+                    </a>
+                  </div>
+                  {table(filtered)}
+                </>
+              )}
+            </>
+          )}
+          {page === "entries" && (
+            <>
+              <div className="toolbar">
+                <div className="search">
+                  <Search size={17} />
+                  <input
+                    aria-label="Pesquisar lançamentos"
+                    placeholder="Pesquisar descrição, cliente ou observação"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+                <select
+                  aria-label="Filtrar situação"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                >
+                  {[
+                    ["", "Todos os lançamentos"],
+                    ["income", "Entradas"],
+                    ["expense", "Saídas"],
+                    ["cash-income", "Recebimentos no período"],
+                    ["cash-expense", "Pagamentos no período"],
+                    ["receivable", "A receber"],
+                    ["payable", "A pagar"],
+                    ["review", "A conferir"],
+                    ["cancelled", "Cancelados"],
+                  ].map(([v, l]) => (
+                    <option key={v} value={v}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Categoria"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  <option value="">Todas as categorias</option>
+                  {cats.map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              <section className="panel">{table(filtered)}</section>
+            </>
+          )}
+          {page === "services" && (
+            <>
+              <div className="toolbar">
+                <button className="primary" onClick={() => open("service")}>
+                  <Plus size={16} />
+                  Novo serviço
+                </button>
+                <button onClick={() => open("client")}>
+                  <Plus size={16} />
+                  Novo cliente
+                </button>
+              </div>
+              <section className="panel">
+                <div className="panel-heading">
+                  <h2>Serviços do período</h2>
+                  <span className="muted">
+                    Operação e recebimento separados
+                  </span>
+                </div>
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Serviço / cliente</th>
+                        <th>Data</th>
+                        <th>Operação</th>
+                        <th>Financeiro</th>
+                        <th>Valor</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {records
+                        .filter(
+                          (r) =>
+                            r.kind === "service" &&
+                            inPeriod(r.competence || r.date, year, month),
+                        )
+                        .map((s) => {
+                          const e = entries.find((e) => e.serviceId === s.id);
+                          return (
+                            <tr key={s.id}>
+                              <td>
+                                <strong>{s.description}</strong>
+                                <small>
+                                  {
+                                    clients.find((c) => c.id === s.clientId)
+                                      ?.name
+                                  }
+                                </small>
+                              </td>
+                              <td>{br(s.date)}</td>
+                              <td>{s.status}</td>
+                              <td>{e ? status(e) : "A conferir"}</td>
+                              <td>
+                                {e?.amount === null
+                                  ? "Sem preço"
+                                  : money(
+                                      (e?.amount || 0) - (e?.discount || 0),
+                                    )}
+                              </td>
+                              <td>
+                                <button onClick={() => open("service", s)}>
+                                  Editar
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+                {!records.some(
+                  (r) =>
+                    r.kind === "service" &&
+                    inPeriod(r.competence || r.date, year, month),
+                ) && (
+                  <div className="empty">
+                    <BriefcaseBusiness size={28} />
+                    <h3>Nenhum serviço neste período</h3>
+                    <p>
+                      {clients.length
+                        ? "Adicione um serviço e acompanhe os recebimentos na mesma origem."
+                        : "Comece cadastrando um cliente para vincular seus serviços."}
+                    </p>
+                    <button
+                      onClick={() =>
+                        open(clients.length ? "service" : "client")
+                      }
+                    >
+                      {clients.length ? "Novo serviço" : "Cadastrar cliente"}
+                    </button>
+                  </div>
+                )}
+              </section>
+              <section className="panel">
+                <div className="panel-heading">
+                  <h2>Clientes</h2>
+                </div>
+                {clients.map((c) => (
+                  <button
+                    className="summary-row"
+                    key={c.id}
+                    onClick={() => open("client", c)}
+                  >
+                    <span>
+                      {c.name}
+                      <small>{c.contact}</small>
+                    </span>
+                    <Pencil size={16} />
+                  </button>
+                ))}
+                {!clients.length && (
+                  <div className="empty">
+                    <p>
+                      Cadastre seu primeiro cliente para vincular um serviço.
+                    </p>
+                  </div>
+                )}
+              </section>
+            </>
+          )}
+          {page === "fixed" && (
+            <>
+              <div className="toolbar">
+                <button className="primary" onClick={() => open("recurrence")}>
+                  <Plus size={16} />
+                  Nova despesa fixa
+                </button>
+                <button
+                  disabled={busy || month === "all"}
+                  onClick={() =>
+                    void run(async () => {
+                      await api("/api/data", {
+                        action: "generate",
+                        year: Number(year),
+                        month: Number(month),
+                      });
+                      await refresh();
+                    }, "Geração concluída. As contas permanecem previstas.")
+                  }
+                >
+                  Gerar contas do mês
+                </button>
+                <span className="muted">
+                  {month === "all"
+                    ? "Escolha um mês para gerar as contas."
+                    : "Gerar novamente não duplica as contas."}
+                </span>
+              </div>
+              <section className="panel">
+                <div className="panel-heading">
+                  <h2>Recorrências mensais</h2>
+                </div>
+                {records
+                  .filter((r) => r.kind === "recurrence")
+                  .map((r) => (
+                    <button
+                      className="summary-row"
+                      key={r.id}
+                      onClick={() => open("recurrence", r)}
+                    >
+                      <span>
+                        {r.description}
+                        <small>
+                          Dia {r.day} · {r.category} ·{" "}
+                          {r.active ? "Ativa" : "Encerrada"}
+                        </small>
+                      </span>
+                      <strong>{money(r.amount)}</strong>
+                      <Pencil size={16} />
+                    </button>
+                  ))}
+                {!records.some((r) => r.kind === "recurrence") && (
+                  <div className="empty">
+                    <Repeat2 size={28} />
+                    <h3>Suas contas recorrentes, organizadas</h3>
+                    <p>Cadastre uma despesa e gere os compromissos do mês.</p>
+                  </div>
+                )}
+              </section>
+              {table(periodEntries.filter((e) => e.recurrenceId))}
+            </>
+          )}
+          {page === "vehicles" && (
+            <>
+              <div className="toolbar">
+                <button className="primary" onClick={() => open("vehicle")}>
+                  <Plus size={16} />
+                  Cadastrar veículo
+                </button>
+                <button
+                  onClick={() =>
+                    open("entry", undefined, {
+                      category: "Combustível",
+                      vehicleId: vehicle,
+                      fuel: {
+                        liters: "",
+                        odometer: "",
+                        station: "",
+                        fuelType: "",
+                      },
+                    })
+                  }
+                >
+                  <Fuel size={17} />
+                  Abastecimento
+                </button>
+                <button
+                  onClick={() =>
+                    open("entry", undefined, {
+                      category: "Manutenção de veículos",
+                      vehicleId: vehicle,
+                    })
+                  }
+                >
+                  Registrar manutenção
+                </button>
+                <select
+                  aria-label="Selecionar veículo"
+                  value={vehicle}
+                  onChange={(e) => setVehicle(e.target.value)}
+                >
+                  <option value="">Todos os veículos / a vincular</option>
+                  {vehicles.map((v) => (
+                    <option value={v.id} key={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="vehicle-grid">
+                {vehicles
+                  .filter((v) => !vehicle || v.id === vehicle)
+                  .map((v) => {
+                    const es = entries.filter((e) => e.vehicleId === v.id);
+                    return (
+                      <section className="panel vehicle-card" key={v.id}>
+                        <div>
+                          <Car size={25} />
+                          <button
+                            className="icon-button"
+                            aria-label={"Editar " + v.name}
+                            onClick={() => open("vehicle", v)}
+                          >
+                            <Pencil size={16} />
+                          </button>
+                        </div>
+                        <h2>{v.name}</h2>
+                        <p>
+                          {v.model || "Modelo não informado"} ·{" "}
+                          {v.plate || "Sem placa"}
+                        </p>
+                        <dl>
+                          {[
+                            [
+                              "Registrado no período",
+                              totals(es, year, month, "accrual").expense,
+                            ],
+                            [
+                              "Pago no período",
+                              totals(es, year, month).expense,
+                            ],
+                            [
+                              "Combustível no ano",
+                              totals(
+                                es.filter((e) => e.category === "Combustível"),
+                                year,
+                                "all",
+                                "accrual",
+                              ).expense,
+                            ],
+                            [
+                              "Manutenção no ano",
+                              totals(
+                                es.filter(
+                                  (e) =>
+                                    e.category === "Manutenção de veículos",
+                                ),
+                                year,
+                                "all",
+                                "accrual",
+                              ).expense,
+                            ],
+                          ].map(([l, n]) => (
+                            <div key={String(l)}>
+                              <dt>{l}</dt>
+                              <dd>{money(Number(n))}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                        <button onClick={() => setVehicle(v.id)}>
+                          Ver histórico
+                        </button>
+                      </section>
+                    );
+                  })}
+              </div>
+              <section className="panel">
+                <div className="panel-heading">
+                  <h2>
+                    Histórico de custos{" "}
+                    {vehicle ? "do veículo" : "e gastos a vincular"}
+                  </h2>
+                </div>
+                {table(
+                  periodEntries.filter((e) =>
+                    vehicle
+                      ? e.vehicleId === vehicle
+                      : !!e.vehicleId ||
+                        ["Combustível", "Manutenção de veículos"].includes(
+                          e.category,
+                        ),
+                  ),
+                )}
+              </section>
+            </>
+          )}
+          {page === "settings" && (
+            <div className="settings-page">
+              <div className="settings-grid">
+                <section className="panel settings-panel organization-panel">
+                  <h2>Organização e preferências</h2>
+                  <p>Nome, saldo inicial e meta anual de vendas brutas.</p>
+                  <dl className="organization-details">
+                    <div>
+                      <dt>Organização</dt>
+                      <dd>{settings.name?.trim() || "Não definida"}</dd>
+                    </div>
+                    <div>
+                      <dt>Saldo inicial</dt>
+                      <dd>
+                        {settings.initialBalance == null
+                          ? "Não definido"
+                          : money(settings.initialBalance)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Meta anual de vendas brutas</dt>
+                      <dd>
+                        {settings.goal == null
+                          ? "Não definida"
+                          : money(settings.goal)}
+                      </dd>
+                    </div>
+                  </dl>
+                  <button onClick={() => open("settings", settings)}>
+                    <Pencil size={15} /> Editar configurações
+                  </button>
+                  <div className="settings-years">
+                    <label htmlFor="new-year">Anos do financeiro</label>
+                    <div className="year-list" aria-label="Anos cadastrados">
+                      {[...settings.years]
+                        .sort((a: number, b: number) => a - b)
+                        .map((y: number) => (
+                          <span key={y}>{y}</span>
+                        ))}
+                    </div>
+                    <div className="inline-form">
+                      <input
+                        aria-label="Adicionar ano"
+                        type="number"
+                        min="1900"
+                        max="2200"
+                        id="new-year"
+                        placeholder="Novo ano"
+                      />
+                      <button
+                        onClick={() =>
+                          void run(async () => {
+                            const y = Number(
+                              (
+                                document.getElementById(
+                                  "new-year",
+                                ) as HTMLInputElement
+                              ).value,
+                            );
+                            await api("/api/data", {
+                              kind: "settings",
+                              id: "settings",
+                              data: {
+                                ...settings,
+                                years: Array.from(
+                                  new Set([...settings.years, y]),
+                                ),
+                              },
+                            });
+                            await refresh();
+                            setYear(String(y));
+                          })
+                        }
+                      >
+                        Adicionar ano
+                      </button>
+                    </div>
+                  </div>
+                </section>
+                <section className="panel settings-panel appearance-panel">
+                  <div>
+                    <span className="appearance-icon">
+                      <Sparkles size={22} />
+                    </span>
+                    <h2>Uma experiência no seu ritmo</h2>
+                    <p>
+                      Transições entre telas, gráficos e feedbacks visuais. Você
+                      pode reduzir o movimento a qualquer momento.
+                    </p>
+                  </div>
+                  <button
+                    className="motion-switch"
+                    type="button"
+                    role="switch"
+                    aria-checked={motion.enabled}
+                    aria-label="Ativar animações"
+                    onClick={motion.toggle}
+                  >
+                    <span className="switch-track">
+                      <span />
+                    </span>
+                    {motion.enabled
+                      ? "Animações ativadas"
+                      : "Movimento reduzido"}
+                  </button>
+                  {motion.reduced && (
+                    <small>
+                      A preferência de movimento reduzido do seu dispositivo
+                      está sendo respeitada.
+                    </small>
+                  )}
+                </section>
+                <section className="panel settings-panel support-panel">
+                  <h2>Cadastros de apoio</h2>
+                  <p>Categorias e colaboradores para classificar despesas.</p>
+                  <div className="settings-shortcuts">
+                    <button
+                      aria-label="Nova categoria"
+                      onClick={() => open("category")}
+                    >
+                      <span>
+                        <strong>Nova categoria</strong>
+                        <small>Organize a classificação dos lançamentos</small>
+                      </span>
+                      <Plus size={18} />
+                    </button>
+                    <button
+                      aria-label="Novo colaborador"
+                      onClick={() => open("employee")}
+                    >
+                      <span>
+                        <strong>Novo colaborador</strong>
+                        <small>Cadastre quem faz parte da equipe</small>
+                      </span>
+                      <Plus size={18} />
+                    </button>
+                    <button
+                      aria-label="Registrar pagamento"
+                      onClick={() => open("payroll")}
+                    >
+                      <span>
+                        <strong>Registrar pagamento</strong>
+                        <small>Lance um pagamento à equipe</small>
+                      </span>
+                      <ArrowRight size={18} />
+                    </button>
+                  </div>
+                  {employees.map((e) => (
+                    <button
+                      key={e.id}
+                      className="summary-row"
+                      onClick={() => open("employee", e)}
+                    >
+                      {e.name}
+                      <Pencil size={14} />
+                    </button>
+                  ))}
+                  {records
+                    .filter((r) => r.kind === "category")
+                    .map((c) => (
+                      <button
+                        key={c.id}
+                        className="summary-row"
+                        onClick={() => open("category", c)}
+                      >
+                        {c.name}
+                        <Pencil size={14} />
+                      </button>
+                    ))}
+                </section>
+                <section className="panel settings-panel backup-panel">
+                  <h2>Backup e restauração</h2>
+                  <p>
+                    Guarde uma cópia dos seus dados ou selecione um backup para
+                    restaurar. Você poderá conferir antes de confirmar.
+                  </p>
+                  <a className="button" href="/api/backup">
+                    <Download size={16} />
+                    Baixar backup
+                  </a>
+                  <FilePicker
+                    label="Selecionar backup"
+                    disabled={busy}
+                    accept=".json"
+                    filename={backupFilename}
+                    hint="Arquivo de backup do Prumo (.json)"
+                    onSelect={(file) => {
+                      setBackupFilename(file?.name || "");
+                      setRestore(null);
+                      if (file)
+                        void run(async () => {
+                          let backup;
+                          try {
+                            backup = JSON.parse(await file.text());
+                          } catch {
+                            throw Error(
+                              "Este arquivo não é um backup JSON válido. Selecione um backup exportado pelo Prumo.",
+                            );
+                          }
+                          const r = await api("/api/backup", { backup });
+                          setRestore(backup);
+                          setNotice(
+                            `Backup validado: ${r.count} registros. Confira antes de restaurar.`,
+                          );
+                        });
+                    }}
+                  />
+
+                  {restore && (
+                    <button
+                      className="danger"
+                      onClick={() =>
+                        setConfirm({
+                          title: "Substituir os dados financeiros?",
+                          body: "Todos os registros atuais serão substituídos pelo backup validado. O administrador será preservado.",
+                          action: async () => {
+                            await api("/api/backup", {
+                              backup: restore,
+                              confirm: "RESTAURAR",
+                            });
+                            setRestore(null);
+                            await refresh();
+                          },
+                        })
+                      }
+                    >
+                      Confirmar restauração
+                    </button>
+                  )}
+                </section>
+                <section className="panel settings-panel spreadsheet-panel">
+                  <h2>Importar planilha</h2>
+                  <p>
+                    Preparação → revisão → confirmação. Nenhum lançamento entra
+                    antes da sua revisão.
+                  </p>
+                  <a
+                    className="button"
+                    href="/modelo-importacao-prumo.xlsx"
+                    download
+                  >
+                    <Download size={16} /> Baixar modelo de planilha
+                  </a>
+                  <p className="template-hint">
+                    Baixe o modelo, preencha a aba Lançamentos e selecione o
+                    arquivo abaixo. As instruções estão na própria planilha.
+                  </p>
+                  <FilePicker
+                    label="Selecionar planilha"
+                    disabled={busy}
+                    accept=".xlsx"
+                    filename={importFile?.name}
+                    hint="Planilha Excel (.xlsx) · até 10 MB"
+                    onSelect={(file) => {
+                      setImportFile(file);
+                      setPreview(null);
+                    }}
+                  />
+                  <button
+                    className="primary"
+                    disabled={!importFile || busy}
+                    onClick={() =>
+                      void run(async () => {
+                        const f = new FormData();
+                        f.set("file", importFile!);
+                        setPreview(await api("/api/import", f));
+                      }, "Prévia pronta para revisão.")
+                    }
+                  >
+                    <FileUp size={16} />
+                    Preparar importação
+                  </button>
+                </section>
+              </div>
+              {preview && (
+                <section className="panel import-review">
+                  <div className="panel-heading">
+                    <div>
+                      <h2>Revisão · {preview.filename}</h2>
+                      <p>
+                        {preview.candidates.length} candidatos · abas:{" "}
+                        {preview.sheets.join(", ")}
+                      </p>
+                    </div>
+                    <button
+                      className="primary"
+                      disabled={busy}
+                      onClick={() =>
+                        setConfirm({
+                          title: "Confirmar os registros selecionados?",
+                          body: "A origem será preservada. Itens não conciliados continuarão a conferir. O mesmo arquivo não poderá duplicar este lote.",
+                          action: async () => {
+                            const f = new FormData();
+                            f.set("file", importFile!);
+                            f.set("action", "confirm");
+                            f.set("edits", JSON.stringify(preview.candidates));
+                            await api("/api/import", f);
+                            setPreview(null);
+                            await refresh();
+                          },
+                        })
+                      }
+                    >
+                      Confirmar importação
+                    </button>
+                  </div>
+                  <ul className="import-warnings">
+                    {preview.warnings.map((w: string) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                  <div className="table-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Mês</th>
+                          <th>Bruto identificado</th>
+                          <th>Bruto da planilha</th>
+                          <th>Diferença</th>
+                          <th>Despesas identificadas</th>
+                          <th>Despesas da planilha</th>
+                          <th>Diferença</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {preview.reconciliation?.map((r: Rec) => (
+                          <tr key={r.month}>
+                            <td>{r.month}</td>
+                            <td>{money(r.gross)}</td>
+                            <td>
+                              {r.referenceGross === null
+                                ? "Sem resumo"
+                                : money(r.referenceGross)}
+                            </td>
+                            <td>
+                              {r.grossDifference === null
+                                ? "—"
+                                : money(r.grossDifference)}
+                            </td>
+                            <td>{money(r.expenses)}</td>
+                            <td>
+                              {r.referenceExpenses === null
+                                ? "Sem resumo"
+                                : money(r.referenceExpenses)}
+                            </td>
+                            <td>
+                              {r.expenseDifference === null
+                                ? "—"
+                                : money(r.expenseDifference)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="table-scroll import-table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Importar</th>
+                          <th>Origem</th>
+                          <th>Descrição</th>
+                          <th>Valor</th>
+                          <th>Conferido</th>
+                          <th>Dados originais</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {preview.candidates.map((c: Rec, i: number) => {
+                          const edit = (k: string, v: any) =>
+                            setPreview({
+                              ...preview,
+                              candidates: preview.candidates.map(
+                                (r: Rec, j: number) =>
+                                  i === j ? { ...r, [k]: v } : r,
+                              ),
+                            });
+                          return (
+                            <tr key={c.key}>
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  aria-label={"Selecionar " + c.description}
+                                  checked={c.selected}
+                                  onChange={(e) =>
+                                    edit("selected", e.target.checked)
+                                  }
+                                />
+                              </td>
+                              <td>
+                                {c.sheet} · linha {c.row}
+                                <small>
+                                  {
+                                    (
+                                      {
+                                        income: "Receita",
+                                        expense: "Despesa",
+                                        service: "Serviço",
+                                        legacy: "Controle antigo",
+                                      } as Rec
+                                    )[c.kind]
+                                  }
+                                </small>
+                              </td>
+                              <td>
+                                <input
+                                  aria-label="Descrição importada"
+                                  value={c.description}
+                                  onChange={(e) =>
+                                    edit("description", e.target.value)
+                                  }
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  aria-label="Valor importado em reais"
+                                  placeholder="Sem valor"
+                                  defaultValue={dec(c.amount)}
+                                  onBlur={(e) => {
+                                    try {
+                                      edit(
+                                        "amount",
+                                        e.target.value === ""
+                                          ? null
+                                          : parseMoney(e.target.value),
+                                      );
+                                    } catch (err) {
+                                      setError((err as Error).message);
+                                    }
+                                  }}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  aria-label={
+                                    "Confirmar interpretação de " +
+                                    c.description
+                                  }
+                                  checked={!!c.resolved}
+                                  onChange={(e) =>
+                                    edit("resolved", e.target.checked)
+                                  }
+                                />
+                              </td>
+                              <td>
+                                <details>
+                                  <summary>Ver origem</summary>
+                                  <pre>
+                                    {JSON.stringify(c.original, null, 2)}
+                                  </pre>
+                                  <p>{c.notes}</p>
+                                </details>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <details className="pad">
+                    <summary>
+                      Resumos originais para conciliação · TOTAL, Contas a pagar
+                      e Como usar
+                    </summary>
+                    <p>
+                      Os resumos não geram lançamentos. Valores sem data e itens
+                      a conferir ficam fora dos totais confirmados.
+                    </p>
+                    <pre>{JSON.stringify(preview.reference, null, 2)}</pre>
+                  </details>
+                </section>
+              )}
+              <section className="panel settings-history">
+                <div className="panel-heading">
+                  <h2>Histórico de alterações</h2>
+                  <span className="muted">Últimos 100 eventos</span>
+                </div>
+                <div className="audit-list">
+                  {audit.length === 0 && (
+                    <p className="audit-empty">
+                      As alterações importantes aparecerão aqui quando você
+                      começar a usar o financeiro.
+                    </p>
+                  )}
+                  {audit.map((a) => (
+                    <details key={a.id}>
+                      <summary>
+                        {new Date(a.createdAt).toLocaleString("pt-BR")} ·{" "}
+                        {(
+                          {
+                            create: "Criação",
+                            edit: "Edição",
+                            payment: "Baixa",
+                            reverse: "Estorno",
+                            cancel: "Cancelamento",
+                            import: "Importação",
+                            restore: "Restauração",
+                            generate: "Geração mensal",
+                          } as Rec
+                        )[a.action] || a.action}
+                      </summary>
+                      <pre>
+                        {JSON.stringify(
+                          {
+                            registro: a.entityId,
+                            anterior: a.before ? JSON.parse(a.before) : null,
+                            novo: a.after ? JSON.parse(a.after) : null,
+                          },
+                          null,
+                          2,
+                        )}
+                      </pre>
+                    </details>
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
+          <footer>
+            Prumo · Finanças em equilíbrio
+            <span>Valores em reais · Dados persistidos localmente</span>
+          </footer>
+        </main>
+      </div>
+      <dialog
+        ref={dialog}
+        className="editor-dialog"
+        data-kind={payment ? "payment" : editor?.kind}
+        aria-labelledby="editor-title"
+        aria-describedby="editor-description"
+        onCancel={(e) => {
+          e.preventDefault();
+          closeEditor();
+        }}
+      >
+        <div className="dialog-heading">
+          <div>
+            <h2 id="editor-title">
+              {payment
+                ? payment.type === "income"
+                  ? "Registrar recebimento"
+                  : "Registrar pagamento"
+                : editor?.id
+                  ? "Editar registro"
+                  : (
+                      {
+                        entry: form.fuel
+                          ? "Novo abastecimento"
+                          : form.category === "Manutenção de veículos"
+                            ? "Nova manutenção"
+                            : "Novo lançamento",
+                        service: "Novo serviço",
+                        client: "Novo cliente",
+                        vehicle: "Novo veículo",
+                        recurrence: "Nova despesa fixa",
+                        employee: "Novo colaborador",
+                        category: "Nova categoria",
+                        payroll: "Pagamento de colaborador",
+                        settings: "Configurações",
+                      } as Rec
+                    )[editor?.kind]}
+            </h2>
+            <p id="editor-description">
+              {payment
+                ? payment.description
+                : (
+                    {
+                      entry: "Organize o valor e o mês deste lançamento.",
+                      service:
+                        "Vincule o cliente e descreva os itens do serviço.",
+                      client:
+                        "Os dados essenciais para identificar seu cliente.",
+                      vehicle:
+                        "Identifique o veículo para acompanhar seus custos.",
+                      recurrence: "Defina a conta que se repete a cada mês.",
+                      settings: "Ajuste as informações do seu financeiro.",
+                      payroll:
+                        "Informe os valores do mês para este colaborador.",
+                      employee: "Cadastre quem recebe pagamentos.",
+                      category:
+                        "Crie uma categoria para organizar seus lançamentos.",
+                    } as Rec
+                  )[editor?.kind]}
+            </p>
+          </div>
+          <button
+            className="icon-button"
+            onClick={closeEditor}
+            aria-label="Fechar formulário"
+          >
+            <X />
+          </button>
+        </div>
+        {error && (
+          <div role="alert" className="error pad">
+            {error}
+          </div>
+        )}
+        {payment ? (
+          <form
+            className="editor-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void run(async () => {
+                await api("/api/data", {
+                  action: "payment",
+                  id: payment.id,
+                  amount: parseMoney(form.amount),
+                  date: form.date,
+                  method: form.method,
+                });
+                setPayment(null);
+                await refresh();
+              });
+            }}
+          >
+            <div className="form-content">
+              <p className="muted">
+                Devido: {money(payment.amount! - payment.discount)} · Em aberto:{" "}
+                {money(balance(payment)!)}
+              </p>
+              <Field label="Valor da baixa (R$)">
+                <input
+                  autoFocus
+                  value={form.amount}
+                  onChange={(e) => set("amount", e.target.value)}
+                  required
+                  inputMode="decimal"
+                />
+              </Field>
+              <Field label="Data efetiva">
+                <input
+                  type="date"
+                  required
+                  value={form.date}
+                  onChange={(e) => set("date", e.target.value)}
+                />
+              </Field>
+              <Field label="Forma de pagamento">
+                <input
+                  required
+                  value={form.method}
+                  onChange={(e) => set("method", e.target.value)}
+                />
+              </Field>
+            </div>
+            <div className="dialog-footer">
+              <button type="button" onClick={closeEditor}>
+                Cancelar
+              </button>
+              <button className="primary" type="submit" disabled={busy}>
+                {busy
+                  ? "Salvando…"
+                  : payment.type === "income"
+                    ? "Confirmar recebimento"
+                    : "Confirmar pagamento"}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={submit} className="editor-form">
+            <div className="form-content">
+              {editor &&
+                ["client", "vehicle", "employee", "category"].includes(
+                  editor.kind,
+                ) && (
+                  <>
+                    <Field label="Nome / identificação">
+                      <input
+                        autoFocus
+                        required
+                        value={form.name}
+                        onChange={(e) => set("name", e.target.value)}
+                      />
+                    </Field>
+                    {editor.kind === "client" && (
+                      <Field label="Contato (opcional)">
+                        <input
+                          value={form.contact}
+                          onChange={(e) => set("contact", e.target.value)}
+                        />
+                      </Field>
+                    )}
+                    {editor.kind === "vehicle" && (
+                      <div className="form-grid">
+                        <Field label="Modelo (opcional)">
+                          <input
+                            value={form.model}
+                            onChange={(e) => set("model", e.target.value)}
+                          />
+                        </Field>
+                        <Field label="Placa (opcional)">
+                          <input
+                            value={form.plate}
+                            onChange={(e) => set("plate", e.target.value)}
+                          />
+                        </Field>
+                      </div>
+                    )}
+                  </>
+                )}
+              {editor &&
+                ["entry", "recurrence", "service"].includes(editor.kind) && (
+                  <>
+                    <Field label="Descrição">
+                      <input
+                        autoFocus
+                        required
+                        value={form.description}
+                        onChange={(e) => set("description", e.target.value)}
+                      />
+                    </Field>
+                    {editor.kind !== "service" && (
+                      <div
+                        className={
+                          editor.kind === "entry"
+                            ? "form-grid entry-value-grid"
+                            : "form-grid"
+                        }
+                      >
+                        {" "}
+                        {editor.kind === "entry" && (
+                          <Field label="Tipo">
+                            <select
+                              value={form.type}
+                              onChange={(e) => set("type", e.target.value)}
+                            >
+                              <option value="income">Entrada</option>
+                              <option value="expense">Saída</option>
+                            </select>
+                          </Field>
+                        )}
+                        <Field label="Categoria">
+                          <select
+                            value={form.category}
+                            onChange={(e) => set("category", e.target.value)}
+                          >
+                            {cats.map((c) => (
+                              <option key={c}>{c}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field
+                          label={
+                            editor.kind === "recurrence"
+                              ? "Valor mensal (R$)"
+                              : "Valor (R$)"
+                          }
+                        >
+                          <input
+                            inputMode="decimal"
+                            value={form.amount}
+                            onChange={(e) => set("amount", e.target.value)}
+                            required={editor.kind === "recurrence"}
+                          />
+                        </Field>
+                      </div>
+                    )}
+                  </>
+                )}
+              {editor?.kind === "entry" && (
+                <>
+                  <div className="form-grid">
+                    {["Combustível", "Manutenção de veículos"].includes(
+                      form.category,
+                    ) ? (
+                      <Field label="Data do gasto">
+                        <input
+                          type="date"
+                          required
+                          value={form.competence}
+                          onChange={(e) => set("competence", e.target.value)}
+                        />
+                      </Field>
+                    ) : (
+                      <Field label="Mês de referência">
+                        <input
+                          type="month"
+                          required
+                          value={form.competence?.slice(0, 7) || ""}
+                          onChange={(e) =>
+                            set(
+                              "competence",
+                              e.target.value ? e.target.value + "-01" : "",
+                            )
+                          }
+                        />
+                      </Field>
+                    )}
+                    <Field label="Vencimento (opcional)">
+                      <input
+                        type="date"
+                        value={form.due || ""}
+                        onChange={(e) => set("due", e.target.value)}
+                      />
+                    </Field>
+                  </div>
+                  {/^0+(?:,0{1,2})?$/.test(
+                    String(form.amount).replaceAll(".", ""),
+                  ) && (
+                    <label className="check-label">
+                      <input
+                        type="checkbox"
+                        checked={form.confirmedZero}
+                        onChange={(e) => set("confirmedZero", e.target.checked)}
+                      />
+                      Confirmo valor zero (gratuito / garantia)
+                    </label>
+                  )}
+                  <p className="field-hint">
+                    Deixe o valor em branco se ainda não estiver definido. O
+                    recebimento ou pagamento pode ser registrado depois.
+                  </p>
+                  {["Combustível", "Manutenção de veículos"].includes(
+                    form.category,
+                  ) && (
+                    <Field label="Veículo">
+                      <select
+                        value={form.vehicleId}
+                        onChange={(e) => set("vehicleId", e.target.value)}
+                      >
+                        <option value="">A vincular</option>
+                        {vehicles.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
+                  <details className="form-details">
+                    <summary>
+                      Informações adicionais{form.review ? " · a conferir" : ""}
+                    </summary>{" "}
+                    <Field label="Cliente / fornecedor (opcional)">
+                      <input
+                        value={form.party}
+                        onChange={(e) => set("party", e.target.value)}
+                      />
+                    </Field>
+                    <label className="check-label">
+                      <input
+                        type="checkbox"
+                        checked={form.review}
+                        onChange={(e) => set("review", e.target.checked)}
+                      />
+                      Informações precisam de conferência
+                    </label>
+                    <Field label="Desconto explícito (R$)">
+                      <input
+                        value={form.discount}
+                        onChange={(e) => set("discount", e.target.value)}
+                      />
+                    </Field>
+                    {!["Combustível", "Manutenção de veículos"].includes(
+                      form.category,
+                    ) && (
+                      <Field label="Veículo (opcional)">
+                        <select
+                          value={form.vehicleId}
+                          onChange={(e) => set("vehicleId", e.target.value)}
+                        >
+                          <option value="">A vincular / não se aplica</option>
+                          {vehicles.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    )}
+                    <Field label="Forma prevista de pagamento">
+                      <input
+                        value={form.method}
+                        onChange={(e) => set("method", e.target.value)}
+                      />
+                    </Field>
+                    {form.category === "Combustível" && (
+                      <div className="form-grid">
+                        {[
+                          ["fuelType", "Combustível"],
+                          ["liters", "Litros (opcional)"],
+                          ["odometer", "Quilometragem (opcional)"],
+                          ["station", "Posto (opcional)"],
+                        ].map(([k, l]) => (
+                          <Field label={l} key={k}>
+                            <input
+                              value={form.fuel?.[k] || ""}
+                              onChange={(e) =>
+                                set("fuel", {
+                                  liters: "",
+                                  odometer: "",
+                                  station: "",
+                                  fuelType: "",
+                                  ...form.fuel,
+                                  [k]: e.target.value,
+                                })
+                              }
+                            />
+                          </Field>
+                        ))}
+                      </div>
+                    )}
+                    <Field label="Observações">
+                      <textarea
+                        value={form.notes}
+                        onChange={(e) => set("notes", e.target.value)}
+                      />
+                    </Field>
+                  </details>
+                  {form.serviceId && (
+                    <p className="muted">
+                      Valor e descrição pertencem ao serviço.{" "}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          open(
+                            "service",
+                            records.find((r) => r.id === form.serviceId),
+                          )
+                        }
+                      >
+                        Editar serviço de origem
+                      </button>
+                    </p>
+                  )}
+                  {form.payments?.length > 0 && (
+                    <div className="payments">
+                      <h3>Histórico de baixas</h3>
+                      {form.payments.map((p: any) => (
+                        <div key={p.id}>
+                          <span>
+                            {money(p.amount)} · {br(p.date)} · {p.method}
+                            {p.voided ? " · Estornada" : ""}
+                          </span>
+                          {!p.voided && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setConfirm({
+                                  title: "Estornar esta baixa?",
+                                  body: "O valor voltará ao saldo em aberto. O histórico será preservado.",
+                                  action: async () => {
+                                    await api("/api/data", {
+                                      action: "reverse",
+                                      id: editor.id,
+                                      paymentId: p.id,
+                                    });
+                                    setEditor(null);
+                                    await refresh();
+                                  },
+                                })
+                              }
+                            >
+                              Estornar
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {form.source && (
+                    <details>
+                      <summary>Rastreabilidade da importação</summary>
+                      <pre>
+                        {JSON.stringify(JSON.parse(form.source), null, 2)}
+                      </pre>
+                    </details>
+                  )}
+                </>
+              )}
+              {editor?.kind === "service" && (
+                <>
+                  <div className="form-grid">
+                    <Field label="Cliente">
+                      <select
+                        required
+                        value={form.clientId}
+                        onChange={(e) => set("clientId", e.target.value)}
+                      >
+                        <option value="">Selecione um cliente</option>
+                        {clients.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Situação operacional">
+                      <select
+                        value={form.status}
+                        onChange={(e) => set("status", e.target.value)}
+                      >
+                        {[
+                          "Agendado",
+                          "Em andamento",
+                          "Concluído",
+                          "Cancelado",
+                          "A conferir",
+                        ].map((s) => (
+                          <option key={s}>{s}</option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                  <div className="form-grid">
+                    <Field label="Data do serviço (opcional)">
+                      <input
+                        type="date"
+                        value={form.date || ""}
+                        onChange={(e) => set("date", e.target.value)}
+                      />
+                    </Field>
+                    <Field label="Mês de referência">
+                      <input
+                        type="month"
+                        required
+                        value={form.competence?.slice(0, 7) || ""}
+                        onChange={(e) =>
+                          set(
+                            "competence",
+                            e.target.value ? e.target.value + "-01" : "",
+                          )
+                        }
+                      />
+                    </Field>
+                  </div>
+
+                  <h3>Itens do serviço</h3>
+                  <p className="muted">
+                    Informe o total de cada item. Se o preço ainda não estiver
+                    definido, deixe o valor em branco.
+                  </p>
+                  {form.items.map((item: any, i: number) => (
+                    <div className="service-item" key={i}>
+                      {[
+                        ["description", "Descrição"],
+                        ["quantity", "Quantidade"],
+                        ["unit", "Unidade"],
+                        ["amount", "Total do item (R$)"],
+                      ].map(([k, l]) => (
+                        <Field key={k} label={l}>
+                          <input
+                            required={k === "description"}
+                            value={
+                              k === "amount" && typeof item[k] === "number"
+                                ? dec(item[k])
+                                : (item[k] ?? "")
+                            }
+                            placeholder={k === "amount" ? "Sem preço" : ""}
+                            onChange={(e) =>
+                              set(
+                                "items",
+                                form.items.map((r: any, j: number) =>
+                                  i === j ? { ...r, [k]: e.target.value } : r,
+                                ),
+                              )
+                            }
+                          />
+                        </Field>
+                      ))}
+                      <button
+                        type="button"
+                        disabled={form.items.length === 1}
+                        onClick={() =>
+                          set(
+                            "items",
+                            form.items.filter((_: any, j: number) => i !== j),
+                          )
+                        }
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      set("items", [
+                        ...form.items,
+                        {
+                          description: "",
+                          quantity: "",
+                          unit: "",
+                          amount: null,
+                        },
+                      ])
+                    }
+                  >
+                    <Plus size={15} />
+                    Adicionar item
+                  </button>
+                  <details className="form-details">
+                    <summary>Desconto e observações</summary>
+                    <Field label="Desconto explícito (R$)">
+                      <input
+                        value={form.discount}
+                        onChange={(e) => set("discount", e.target.value)}
+                      />
+                    </Field>
+                    <Field label="Observações">
+                      <textarea
+                        value={form.notes}
+                        onChange={(e) => set("notes", e.target.value)}
+                      />
+                    </Field>
+                  </details>
+                </>
+              )}
+              {editor?.kind === "recurrence" && (
+                <>
+                  <div className="form-grid">
+                    <Field label="Dia de vencimento">
+                      <input
+                        type="number"
+                        min="1"
+                        max="31"
+                        required
+                        value={form.day}
+                        onChange={(e) => set("day", e.target.value)}
+                      />
+                    </Field>
+                    <Field label="Início">
+                      <input
+                        type="date"
+                        required
+                        value={form.start}
+                        onChange={(e) => set("start", e.target.value)}
+                      />
+                    </Field>
+                    <Field label="Término (opcional)">
+                      <input
+                        type="date"
+                        value={form.end || ""}
+                        onChange={(e) => set("end", e.target.value)}
+                      />
+                    </Field>
+                  </div>
+                  <p className="muted">
+                    Se o dia não existir, o vencimento será o último dia do mês.
+                  </p>
+                  <label className="check-label">
+                    <input
+                      type="checkbox"
+                      checked={form.active}
+                      onChange={(e) => set("active", e.target.checked)}
+                    />
+                    Recorrência ativa
+                  </label>
+                  {editor.id && (
+                    <Field label="Aplicar alterações">
+                      <select
+                        value={form.scope}
+                        onChange={(e) => set("scope", e.target.value)}
+                      >
+                        <option value="one">
+                          Modelo para próximas gerações
+                        </option>
+                        <option value="future">
+                          Modelo e contas não liquidadas desde o início
+                          informado
+                        </option>
+                      </select>
+                    </Field>
+                  )}
+                  <p className="muted">
+                    Para alterar só uma ocorrência, edite a conta em
+                    Lançamentos.
+                  </p>
+                </>
+              )}
+              {editor?.kind === "payroll" && (
+                <>
+                  <Field label="Colaborador">
+                    <select
+                      required
+                      value={form.employeeId}
+                      onChange={(e) => set("employeeId", e.target.value)}
+                    >
+                      <option value="">Selecione</option>
+                      {employees.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Mês de referência">
+                    <input
+                      type="month"
+                      required
+                      value={form.competence?.slice(0, 7) || ""}
+                      onChange={(e) =>
+                        set(
+                          "competence",
+                          e.target.value ? e.target.value + "-01" : "",
+                        )
+                      }
+                    />
+                  </Field>
+                  {[
+                    ["base", "Valor-base (R$)"],
+                    ["extras", "Extras (R$)"],
+                    ["discount", "Descontos (R$)"],
+                  ].map(([k, l]) => (
+                    <Field key={k} label={l}>
+                      <input
+                        required
+                        value={form[k]}
+                        onChange={(e) => set(k, e.target.value)}
+                      />
+                    </Field>
+                  ))}
+                  <p className="muted">
+                    Será criado um compromisso. Registre a baixa quando o
+                    pagamento acontecer.
+                  </p>
+                </>
+              )}
+              {editor?.kind === "settings" && (
+                <>
+                  <Field label="Nome da organização · opcional">
+                    <input
+                      placeholder="Digite o nome da organização"
+                      value={form.name}
+                      onChange={(e) => set("name", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Saldo inicial (R$) · opcional">
+                    <input
+                      value={form.initialBalance}
+                      onChange={(e) => set("initialBalance", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Data do saldo inicial">
+                    <input
+                      type="date"
+                      required={form.initialBalance !== ""}
+                      value={form.initialDate}
+                      onChange={(e) => set("initialDate", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Meta anual de vendas brutas (R$)">
+                    <input
+                      value={form.goal}
+                      onChange={(e) => set("goal", e.target.value)}
+                    />
+                  </Field>
+                </>
+              )}
+            </div>
+            <div className="dialog-footer">
+              {editor?.id &&
+                [
+                  "client",
+                  "vehicle",
+                  "employee",
+                  "category",
+                  "recurrence",
+                ].includes(editor.kind) && (
+                  <button
+                    className="danger"
+                    type="button"
+                    onClick={() =>
+                      setConfirm({
+                        title: "Excluir cadastro sem vínculos?",
+                        body: "A exclusão será registrada no histórico. Cadastros vinculados a movimentações serão preservados.",
+                        action: async () => {
+                          await api("/api/data", {
+                            action: "delete",
+                            id: editor.id,
+                          });
+                          setEditor(null);
+                          await refresh();
+                        },
+                      })
+                    }
+                  >
+                    Excluir cadastro
+                  </button>
+                )}
+              {editor?.kind === "entry" && editor.id && !form.cancelled && (
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() =>
+                    setConfirm({
+                      title: "Cancelar lançamento?",
+                      body: "A origem e o histórico serão mantidos. O lançamento e suas baixas deixarão de compor os totais.",
+                      action: async () => {
+                        await api("/api/data", {
+                          action: "cancel",
+                          id: editor.id,
+                        });
+                        setEditor(null);
+                        await refresh();
+                      },
+                    })
+                  }
+                >
+                  Cancelar lançamento
+                </button>
+              )}
+              <button type="button" onClick={closeEditor}>
+                Cancelar
+              </button>
+              <button className="primary" type="submit" disabled={busy}>
+                {busy
+                  ? "Salvando…"
+                  : editor?.id
+                    ? "Salvar alterações"
+                    : (
+                        {
+                          entry: "Salvar lançamento",
+                          client: "Salvar cliente",
+                          service: "Salvar serviço",
+                          vehicle: "Salvar veículo",
+                          recurrence: "Salvar despesa fixa",
+                          employee: "Salvar colaborador",
+                          category: "Salvar categoria",
+                          payroll: "Salvar compromisso",
+                          settings: "Salvar configurações",
+                        } as Rec
+                      )[editor?.kind] || "Salvar"}
+              </button>
+            </div>
+          </form>
+        )}
+      </dialog>
+      <dialog
+        className="confirmation-dialog"
+        ref={confirmation}
+        aria-labelledby="confirmation-title"
+        onCancel={() => setConfirm(null)}
+      >
+        <div className="dialog-heading">
+          <h2 id="confirmation-title">{confirm?.title}</h2>
+        </div>
+        <p className="pad">{confirm?.body}</p>
+        {error && (
+          <p role="alert" className="error pad">
+            {error}
+          </p>
+        )}
+        <div className="dialog-footer">
+          <button onClick={() => setConfirm(null)}>Voltar</button>
+          <button
+            className="danger"
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                await confirm?.action();
+                setConfirm(null);
+              })
+            }
+          >
+            {busy ? "Confirmando…" : "Confirmar"}
+          </button>
+        </div>
+      </dialog>
+      <CommandPalette
+        open={commandOpen}
+        onClose={() => setCommandOpen(false)}
+        commands={[
+          ...nav.map(([id, label, Icon]) => ({
+            id,
+            label,
+            description: "Abrir " + label.toLocaleLowerCase("pt-BR"),
+            Icon,
+            action: () => go(id),
+          })),
+          {
+            id: "new-entry",
+            label: "Novo lançamento",
+            description: "Registrar uma entrada ou saída",
+            Icon: Plus,
+            action: () => open("entry"),
+          },
+          {
+            id: "new-fuel",
+            label: "Registrar abastecimento",
+            description: "Adicionar um gasto de combustível",
+            Icon: Fuel,
+            action: () =>
+              open("entry", undefined, {
+                category: "Combustível",
+                fuel: { liters: "", odometer: "", station: "", fuelType: "" },
+              }),
+          },
+        ]}
+      />
+    </div>
+  );
+}
