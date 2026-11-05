@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { db } from "../src/lib/db";
 import { hash } from "bcryptjs";
 import { createInterface } from "node:readline/promises";
 import { Writable } from "node:stream";
@@ -32,7 +32,6 @@ if (
   password !== confirmation
 )
   throw Error("E-mail, senha ou confirmação inválidos");
-const db = new PrismaClient();
 try {
   if (await db.admin.count())
     throw Error("Administrador já configurado. Não há cadastro público.");

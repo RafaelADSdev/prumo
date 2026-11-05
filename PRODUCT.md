@@ -6,7 +6,7 @@ web
 
 ## Stack
 
-Next.js, TypeScript, SQLite e Prisma; execução local conforme pedido explícito.
+Next.js, TypeScript e Prisma. PostgreSQL/Supabase ativado em 05/11/2026 por solicitação explícita do usuário; SQLite mantido como alternativa local e para testes isolados. O servidor continua local; credenciais e conexão ao banco ficam somente no servidor. Migração preserva dados, administrador e histórico, com backup antes da troca e validação dos conteúdos.
 
 ## Usuário e objetivo
 

@@ -40,8 +40,34 @@ async function main() {
   console.log(
     `Conexão com a API Supabase: OK. Tabelas disponíveis na API: ${count}.`,
   );
+  if (/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL || "")) {
+    const { PrismaClient } = await import("@prumo/supabase-client");
+    const client = new PrismaClient({
+      datasourceUrl: process.env.DATABASE_URL,
+    });
+    try {
+      await client.$queryRaw`SELECT 1`;
+      const [records, admins] = await Promise.all([
+        client.record.count(),
+        client.admin.count(),
+      ]);
+      console.log(
+        `Banco ativo: Supabase PostgreSQL. Registros: ${records}; administradores: ${admins}.`,
+      );
+    } catch {
+      throw Error(
+        "A conexão PostgreSQL ou as tabelas do Prumo não estão disponíveis. Confira a URI, o certificado e a migração.",
+      );
+    } finally {
+      await client.$disconnect();
+    }
+  } else {
+    console.log(
+      "Banco ativo: SQLite local. O acesso à API não muda o banco do aplicativo.",
+    );
+  }
   console.log(
-    "Este teste não altera dados. A aplicação continua usando o banco definido em DATABASE_URL.",
+    "Verificação concluída sem alterar dados nem exibir credenciais.",
   );
 }
 

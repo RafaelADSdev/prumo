@@ -6,6 +6,7 @@ export default async function Page() {
   return (
     <App
       loggedIn={await authenticated()}
+      cloudStorage={/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL || "")}
       needsSetup={(await db.admin.count()) === 0}
     />
   );

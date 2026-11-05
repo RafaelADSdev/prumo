@@ -19,7 +19,7 @@ Com acesso individual, dados no seu computador e números que você consegue con
 
 O Prumo organiza a rotina financeira sem exigir que você trabalhe dentro de uma planilha. Registre um compromisso, acompanhe suas baixas e entenda quanto entrou, quanto saiu e o que ainda precisa de atenção.
 
-A aplicação funciona no navegador, com servidor e banco SQLite locais. As operações principais dispensam serviços externos e conexão com a internet depois da instalação. Não há cadastro público, mensalidade de uma API para operar ou dados de demonstração inseridos no banco de uso real.
+A aplicação funciona no navegador, com servidor Next.js e persistência Prisma. Suporta SQLite local e PostgreSQL no Supabase; esta instalação passou a usar Supabase por solicitação do usuário. O modo SQLite funciona sem serviços externos depois da instalação; o modo Supabase requer internet. Não há cadastro público nem dados de demonstração inseridos no banco de uso real.
 
 ## Por dentro do Prumo
 
@@ -102,7 +102,7 @@ DATABASE_URL="file:./finance.db"
 NEXT_TELEMETRY_DISABLED=1
 ```
 
-Esse caminho é relativo à pasta do esquema Prisma. Preserve o arquivo do banco e a configuração entre reinícios. `localStorage` guarda somente a preferência de animações; os registros financeiros ficam no SQLite.
+Esse caminho é relativo à pasta do esquema Prisma. Preserve o arquivo do banco e a configuração entre reinícios. `localStorage` guarda somente a preferência de animações; os registros financeiros ficam no banco definido em `DATABASE_URL` (SQLite ou PostgreSQL/Supabase).
 
 ## Sua primeira rotina
 
@@ -280,7 +280,7 @@ Não existe recuperação pública por e-mail ou senha de emergência. Se perder
 | Aplicação    | Next.js 16 · React 19 · TypeScript 5  | Páginas, interface e operações no servidor.     |
 | Interface    | Tailwind CSS 4 · CSS próprio · Lucide | Layout responsivo, componentes e ícones.        |
 | Gráficos     | Recharts 3                            | Visualização dos registros financeiros.         |
-| Persistência | SQLite · Prisma 6                     | Banco local e transações.                       |
+| Persistência | SQLite ou PostgreSQL/Supabase · Prisma 6                     | Banco local e transações.                       |
 | Validação    | Zod 4                                 | Regras de entrada executadas no servidor.       |
 | Autenticação | bcryptjs · sessões opacas             | Senha protegida e acesso individual.            |
 | Verificação  | Vitest · Playwright                   | Regras financeiras e fluxos reais no navegador. |
@@ -402,10 +402,27 @@ O projeto não inclui uma licença geral de distribuição. As licenças de depe
 </div>
 
 
-## Conexão Supabase preparada
+## Banco Supabase e alternativa local
 
 Configure `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` e `SUPABASE_SECRET_KEY` no `.env` do servidor. O arquivo é ignorado pelo controle de versão. Nunca exponha a chave secreta por uma variável `NEXT_PUBLIC_`, resposta de API ou componente do navegador.
 
-Execute `npm run supabase:check` para validar o acesso à API sem gravar dados nem imprimir as chaves. A chave pública não autentica as sessões administrativas atuais do Prumo.
+Execute `npm run supabase:check` para validar o acesso à API sem gravar dados nem imprimir as chaves. O login pode validar usuários no Supabase Auth; o servidor emite a sessão HttpOnly do Prumo apenas para identidades explicitamente autorizadas.
 
-A persistência ainda usa SQLite/Prisma por `DATABASE_URL`. As chaves da API Supabase não são credenciais PostgreSQL. Para concluir a migração, configure `SUPABASE_DATABASE_URL` com a URI de **Connect → Session pooler**, incluindo a senha do banco. Ainda será necessário adaptar o esquema Prisma para PostgreSQL e migrar/verificar os registros antes de trocar o banco ativo; apenas preencher esta variável não ativa a migração.
+O banco ativo é selecionado por `DATABASE_URL`: `file:` usa SQLite; `postgresql:` usa o cliente PostgreSQL do Supabase. `prisma/schema.prisma` e `prisma/supabase.prisma` mantêm os mesmos modelos. `npm run db:generate` gera os dois clientes; `npm run build` faz isso automaticamente. Pare o servidor antes de gerar os clientes no Windows para evitar bloqueio dos arquivos em uso.
+
+Para migrar uma instalação SQLite, configure `SUPABASE_DATABASE_URL` com a URI de **Connect → Session pooler**, incluindo a senha e os parâmetros `schema=prumo&sslmode=require&sslaccept=strict&sslcert=supabase-ca.crt`. Execute `npm run db:generate` e `npm run supabase:migrate`. O comando exige um destino sem tabelas no schema `prumo`, cria uma cópia consistente do SQLite e do ambiente em `backups/antes-supabase-*`, copia administrador, sessões, registros, histórico e lotes em uma transação e compara integralmente os conteúdos antes de ativar `DATABASE_URL`. Se detectar alteração concorrente no SQLite ou falha na comparação, não ativa o destino. Não substitui tabelas existentes e não remove o SQLite original.
+
+As tabelas ficam no schema `prumo`, com RLS habilitado e sem acesso dos papéis `anon` e `authenticated`. A API pública não precisa expor esse schema: o servidor acessa PostgreSQL diretamente e preserva a autenticação administrativa do Prumo. Não adicione `prumo` aos schemas expostos. O certificado público `prisma/supabase-ca.crt` foi obtido no link de download oficial do painel Supabase; a conexão usa validação estrita. O arquivo é incluído na compilação para hospedagem.
+
+Depois da migração, reinicie o servidor. `npm run supabase:check` verifica também a conexão PostgreSQL e a presença das tabelas quando `DATABASE_URL` aponta para a nuvem. Os testes `npm run test:e2e` continuam usando um SQLite temporário isolado, sem modificar o Supabase.
+
+No Supabase, os dados financeiros dependem de internet; o backup JSON continua disponível na interface. O backup completo da instalação remota deve incluir o PostgreSQL, além do ambiente do servidor. A cópia em `backups/antes-supabase-*` representa o estado anterior à migração; não contém alterações posteriores. Para retornar ao modo local com dados atuais, primeiro exporte/concilie os dados da nuvem; apenas reativar o SQLite antigo não sincroniza esses registros.
+
+
+## Login Supabase e publicação na Vercel
+
+Para permitir um usuário do Supabase Authentication no Prumo, inclua o ID dele em `SUPABASE_PRUMO_USER_IDS` no ambiente do servidor (IDs separados por vírgulas). O usuário precisa ter o e-mail confirmado e fornecer a senha correta. Outros usuários do projeto Supabase não recebem acesso automático. O administrador existente continua funcionando; o modo SQLite usa apenas seu administrador local. Tokens do Supabase não são enviados ao navegador nem persistidos no cliente.
+
+Na Vercel, use Node.js 24 e configure no ambiente Production: `DATABASE_URL`, `SUPABASE_DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_PRUMO_USER_IDS` e `COOKIE_SECURE=true`. As duas URIs devem apontar para PostgreSQL, com `schema=prumo` e os parâmetros TLS documentados acima. Não use SQLite em funções da Vercel. A chave secreta de administração do Supabase é necessária para provisionamento/verificações administrativas, não para o login em execução.
+
+O `.env` local não é enviado ao GitHub nem carregado automaticamente pela Vercel. Após alterar configurações na Vercel, gere uma nova publicação. `npm run build` gera os clientes Prisma para o ambiente Linux da hospedagem e inclui o certificado público.

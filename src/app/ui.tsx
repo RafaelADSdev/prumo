@@ -150,9 +150,11 @@ function Field({
 export default function App({
   loggedIn,
   needsSetup = false,
+  cloudStorage = false,
 }: {
   loggedIn: boolean;
   needsSetup?: boolean;
+  cloudStorage?: boolean;
 }) {
   const motion = useMotion();
   const [commandOpen, setCommandOpen] = useState(false),
@@ -686,7 +688,12 @@ export default function App({
           <div className="local-note">
             <ShieldCheck size={18} />
             <div>
-              Seu espaço privado<small>Dados salvos neste computador</small>
+              Seu espaço privado
+              <small>
+                {cloudStorage
+                  ? "Dados salvos no Supabase"
+                  : "Dados salvos neste computador"}
+              </small>
             </div>
           </div>
           <button
@@ -2258,7 +2265,12 @@ export default function App({
           )}
           <footer>
             Prumo · Finanças em equilíbrio
-            <span>Valores em reais · Dados persistidos localmente</span>
+            <span>
+              Valores em reais ·{" "}
+              {cloudStorage
+                ? "Dados salvos no Supabase"
+                : "Dados persistidos localmente"}
+            </span>
           </footer>
         </main>
       </div>

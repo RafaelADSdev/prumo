@@ -3,6 +3,7 @@ import { hashToken, failure, guard } from "@/lib/auth";
 import { compare } from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
+import { verifySupabaseLogin } from "@/lib/supabase-auth";
 let attempts: { at: number }[] = [];
 export async function POST(req: Request) {
   try {
@@ -18,14 +19,23 @@ export async function POST(req: Request) {
         { status: 429 },
       );
     attempts.push({ at: Date.now() });
-    const { email, password } = await req.json();
-    const a = await db.admin.findUnique({ where: { id: 1 } });
+    const input = await req.json();
     if (
-      !a ||
-      email !== a.email ||
-      typeof password !== "string" ||
-      !(await compare(password, a.hash))
+      typeof input.email !== "string" ||
+      typeof input.password !== "string" ||
+      !input.email.trim() ||
+      !input.password
     )
+      throw Error("E-mail ou senha incorretos");
+    const email = input.email.trim().toLowerCase();
+    const password = input.password;
+    const a = await db.admin.findUnique({ where: { id: 1 } });
+    const localAccess = !!(
+      a &&
+      email === a.email.toLowerCase() &&
+      (await compare(password, a.hash))
+    );
+    if (!localAccess && !(await verifySupabaseLogin(email, password)))
       throw Error("E-mail ou senha incorretos");
     const token = randomBytes(32).toString("hex");
     await db.session.create({

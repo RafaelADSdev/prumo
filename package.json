@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
-    "build": "next build",
+    "build": "npm run db:generate && next build",
     "start": "next start --hostname 127.0.0.1",
-    "db:push": "prisma db push",
+    "db:push": "node scripts/setup.mjs",
     "admin": "tsx scripts/admin.ts",
     "test": "vitest run",
     "test:e2e": "tsx scripts/e2e.ts",
@@ -15,7 +15,9 @@
     "format": "prettier --write src scripts tests",
     "test:ui": "tsx scripts/e2e.ts --review-forms",
     "test:motion": "tsx scripts/e2e.ts --review-forms --review-motion",
-    "supabase:check": "node scripts/check-supabase.mjs"
+    "supabase:check": "node scripts/check-supabase.mjs",
+    "db:generate": "prisma generate && prisma generate --schema prisma/supabase.prisma",
+    "supabase:migrate": "tsx scripts/migrate-supabase.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.0",
@@ -46,5 +48,8 @@
     "effect": "^3.20.0",
     "deepmerge-ts": "^8.0.0"
   },
-  "type": "module"
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  }
 }
