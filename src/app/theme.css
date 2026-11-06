@@ -1,3 +1,13 @@
+/* Native popups need opaque colors; a transparent select can otherwise open white. */
+select {
+  color-scheme: inherit;
+}
+select option,
+select optgroup {
+  background-color: var(--prumo-paper);
+  color: var(--prumo-ink);
+}
+
 /* Shared theme tokens; light fallbacks preserve the original ivory palette. */
 html[data-theme="dark"] {
   color-scheme: dark;
