@@ -1,4 +1,5 @@
 import { reviewLogin } from "../tests/login-flows";
+import { reviewSupport } from "../tests/settings-support-flows";
 import { reviewTheme } from "../tests/theme-flows";
 import { reviewMotion, assertCashBars } from "../tests/motion-flows";
 import { reviewForms } from "../tests/ui-flows";
@@ -264,6 +265,8 @@ try {
     { name: "finance-session", value: cookie.split("=")[1], url: base },
   ]);
   const page = await context.newPage();
+  if (process.argv.includes("--review-support"))
+    await reviewSupport(page, base);
   if (process.argv.includes("--review-theme"))
     await reviewTheme(page, base, "workspace");
   const errors: string[] = [];

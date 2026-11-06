@@ -1898,28 +1898,63 @@ export default function App({
                       <ArrowRight size={18} />
                     </button>
                   </div>
-                  {employees.map((e) => (
-                    <button
-                      key={e.id}
-                      className="summary-row"
-                      onClick={() => open("employee", e)}
-                    >
-                      {e.name}
-                      <Pencil size={14} />
-                    </button>
-                  ))}
-                  {records
-                    .filter((r) => r.kind === "category")
-                    .map((c) => (
-                      <button
-                        key={c.id}
-                        className="summary-row"
-                        onClick={() => open("category", c)}
+                  <div className="support-groups">
+                    {[
+                      {
+                        kind: "category",
+                        title: "Categorias",
+                        items: records.filter((r) => r.kind === "category"),
+                        empty: "Nenhuma categoria cadastrada.",
+                      },
+                      {
+                        kind: "employee",
+                        title: "Colaboradores",
+                        items: employees,
+                        empty: "Nenhum colaborador cadastrado.",
+                      },
+                    ].map((group) => (
+                      <section
+                        className="support-group"
+                        key={group.kind}
+                        aria-labelledby={`support-${group.kind}-title`}
                       >
-                        {c.name}
-                        <Pencil size={14} />
-                      </button>
+                        <header className="support-group-heading">
+                          <h3 id={`support-${group.kind}-title`}>
+                            {group.title}
+                          </h3>
+                          <span
+                            className="support-count"
+                            aria-label={`${group.items.length} cadastros`}
+                          >
+                            {group.items.length}
+                          </span>
+                        </header>
+                        {group.items.length ? (
+                          <ul
+                            className="support-list"
+                            aria-label={group.title}
+                            tabIndex={0}
+                          >
+                            {group.items.map((item) => (
+                              <li key={item.id}>
+                                <button
+                                  type="button"
+                                  className="support-edit"
+                                  aria-label={`Editar ${group.kind === "category" ? "categoria" : "colaborador"}: ${item.name}`}
+                                  onClick={() => open(group.kind, item)}
+                                >
+                                  <span>{item.name}</span>
+                                  <Pencil size={15} aria-hidden="true" />
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="support-empty">{group.empty}</p>
+                        )}
+                      </section>
                     ))}
+                  </div>
                 </section>
                 <section className="panel settings-panel backup-panel">
                   <h2>Backup e restauração</h2>
