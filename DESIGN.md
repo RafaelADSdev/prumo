@@ -155,6 +155,10 @@ components:
 
 # Design System: Prumo Perspective
 
+## Relatórios — 06/11/2026
+
+Relatórios preserva as superfícies e tokens dos dois temas. Verde identifica entradas e terracota identifica saídas em todos os agrupamentos; resultado usa a tinta principal. Barras comparam entradas e saídas e linha mostra o resultado de cada intervalo; um segundo gráfico apresenta o acumulado, sem suavização nem animação de valores. Eixos em reais compactos e tooltips em moeda completa. Rankings mostram valores e participação, com ação de filtro nas categorias. Evolução possui tabela acessível expansível. Tabelas extensas rolam dentro do painel no celular; indicadores e agrupamentos passam a uma coluna. Compromissos e critérios de cálculo têm contexto explícito separado da movimentação do caixa.
+
 ## Overview
 
 **Creative North Star: "Finanças em equilíbrio"**

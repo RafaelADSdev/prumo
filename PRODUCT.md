@@ -1,5 +1,9 @@
 # Produto
 
+## Relatórios financeiros
+
+Em 06/11/2026, a aba Relatórios passou a reunir origem e destino do dinheiro com o mesmo recorte em indicadores, gráficos, agrupamentos e CSV. Caixa considera cada baixa datada; competência considera o valor líquido confirmado da operação. O ano completo mostra meses e o mês selecionado mostra dias. Comparação com período anterior completo, categorias de entrada e saída, clientes/favorecidos, formas, origens e custos vinculados a veículos, colaboradores e recorrências. Compromissos mostram a posição atual das operações da competência selecionada, com baixas de qualquer data; não constituem fechamento histórico nem previsão de saldo. Lacunas de valor e baixas sem data são explicitadas. Busca local do detalhamento não altera os totais nem a exportação. Saldo contábil requer saldo inicial datado, período posterior e ausência de filtros.
+
 ## Cadastro de clientes e abrangência dos gastos
 
 Serviços oferecem situação de pagamento ao salvar: manter, quitar saldo com data/forma, ou marcar como não pago estornando os recebimentos após confirmação. A quitação ocorre na mesma transação do serviço, calcula apenas o saldo restante e preserva baixas parciais; sem preço não permite recebimento. A lista mostra Pago/Não pago, valores e formas recebidas. O usuário também solicitou remoção de clientes e serviços: a ação arquiva o cadastro, o retira das listas ativas e preserva vínculos, caixa, compromissos e auditoria; a confirmação explica esse comportamento. Clientes removidos não aparecem para novos serviços. O endereço e os demais campos continuam opcionais.

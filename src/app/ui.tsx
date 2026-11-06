@@ -2,6 +2,7 @@
 import { LoginScreen } from "@/components/login-screen";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ClientProfile } from "@/components/client-profile";
+import { FinancialReports } from "@/components/financial-reports";
 import { CommandPalette } from "@/components/command-palette";
 import { useMotion } from "@/hooks/use-motion";
 import { changeView, revealDialog, dismissDialog } from "@/lib/motion";
@@ -50,8 +51,6 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  AreaChart,
-  Area,
 } from "recharts";
 import {
   Entry,
@@ -316,24 +315,10 @@ export default function App({
     document.addEventListener("keydown", key);
     return () => document.removeEventListener("keydown", key);
   }, [logged]);
-  const reportEntries = useMemo(
-    () =>
-      entries.filter(
-        (e) =>
-          !e.cancelled &&
-          (basis === "cash"
-            ? e.payments.some((p) => !p.voided && inPeriod(p.date, year, month))
-            : !e.review &&
-              e.amount !== null &&
-              inPeriod(e.competence, year, month)),
-      ),
-    [entries, basis, year, month],
-  );
   const periodEntries = entries.filter(
     (e) => !e.cancelled && inPeriod(e.competence, year, month),
   );
-  const cash = totals(entries, year, month),
-    report = totals(entries, year, month, basis);
+  const cash = totals(entries, year, month);
   const selectedClient = clients.find(
     (client) => client.id === selectedClientId,
   );
@@ -370,10 +355,6 @@ export default function App({
       }),
     [entries, year, page, basis],
   );
-  const evolution = useMemo(() => {
-    let cumulative = 0;
-    return monthly.map((d) => ({ ...d, Fluxo: (cumulative += d.Fluxo) }));
-  }, [monthly]);
   const filtered = entries.filter((e) => {
     const period =
       filter.startsWith("cash-") || (page === "reports" && basis === "cash")
@@ -933,7 +914,23 @@ export default function App({
               <span>Atualizando dados…</span>
             </div>
           )}
-          {(page === "overview" || page === "reports") && (
+          {page === "reports" && (
+            <FinancialReports
+              key={year + "-" + month}
+              entries={entries}
+              year={year}
+              month={month}
+              basis={basis === "accrual" ? "accrual" : "cash"}
+              setBasis={setBasis}
+              loading={loading}
+              settings={settings}
+              recordLabels={Object.fromEntries(
+                records.map((r) => [r.id, r.name || r.description || r.id]),
+              )}
+              onEntry={(entry) => open("entry", entry)}
+            />
+          )}
+          {page === "overview" && (
             <>
               <div className="section-meta">
                 <span>
@@ -953,26 +950,22 @@ export default function App({
               <div className="metrics">
                 {[
                   [
-                    page === "reports" && basis === "accrual"
-                      ? "Entradas registradas"
-                      : "Recebimentos efetivos",
-                    (page === "reports" ? report : cash).income,
+                    "Recebimentos efetivos",
+                    cash.income,
                     "cash-income",
                     ArrowDownLeft,
                     "positive",
                   ],
                   [
-                    page === "reports" && basis === "accrual"
-                      ? "Saídas registradas"
-                      : "Pagamentos efetivos",
-                    (page === "reports" ? report : cash).expense,
+                    "Pagamentos efetivos",
+                    cash.expense,
                     "cash-expense",
                     ArrowUpRight,
                     "outgoing",
                   ],
                   [
                     "Fluxo líquido do período",
-                    (page === "reports" ? report : cash).net,
+                    cash.net,
                     "",
                     ArrowLeftRight,
                     "accent",
@@ -981,16 +974,7 @@ export default function App({
                   <button
                     className="metric"
                     key={label}
-                    onClick={() =>
-                      go(
-                        "entries",
-                        page === "reports" && basis === "accrual"
-                          ? f === "cash-income"
-                            ? "income"
-                            : "expense"
-                          : f,
-                      )
-                    }
+                    onClick={() => go("entries", f)}
                   >
                     <div>
                       <span>{label}</span>
@@ -1069,34 +1053,6 @@ export default function App({
                     )}
                   </p>
                 </section>
-              )}
-              {page === "reports" && (
-                <div className="toolbar">
-                  <div className="segmented">
-                    <button
-                      className={basis === "cash" ? "selected" : ""}
-                      onClick={() => setBasis("cash")}
-                    >
-                      Caixa
-                    </button>
-                    <button
-                      className={basis === "accrual" ? "selected" : ""}
-                      onClick={() => setBasis("accrual")}
-                    >
-                      Competência
-                    </button>
-                  </div>
-                  <a
-                    className="button"
-                    href={`/api/export?year=${year}&month=${month}&basis=${basis}`}
-                  >
-                    <Download size={16} />
-                    Exportar CSV
-                  </a>
-                  <button onClick={() => window.print()}>
-                    Imprimir relatório
-                  </button>
-                </div>
               )}
               <div className="charts">
                 <section className="panel comparison">
@@ -1204,11 +1160,9 @@ export default function App({
                       <p>Despesas por categoria · período selecionado</p>
                     </div>
                   </div>
-                  {Object.values(report.categories).some((n) => n > 0) ? (
+                  {Object.values(cash.categories).some((n) => n > 0) ? (
                     <div className="category-list">
-                      {Object.entries(
-                        (page === "reports" ? report : cash).categories,
-                      )
+                      {Object.entries(cash.categories)
                         .filter(([, n]) => n > 0)
                         .sort((a, b) => b[1] - a[1])
                         .map(([c, n], i) => (
@@ -1243,14 +1197,7 @@ export default function App({
                               className="category-bar"
                               style={{
                                 width:
-                                  (n /
-                                    Math.max(
-                                      1,
-                                      (page === "reports" ? report : cash)
-                                        .expense,
-                                    )) *
-                                    100 +
-                                  "%",
+                                  (n / Math.max(1, cash.expense)) * 100 + "%",
                               }}
                             />
                           </button>
@@ -1282,237 +1229,86 @@ export default function App({
                   <ArrowRight size={17} />
                 </button>
               </div>
-              {page === "overview" ? (
-                <div className="lower-grid">
-                  <section className="panel">
-                    <div className="panel-heading">
-                      <h2>Lançamentos recentes</h2>
-                      <button
-                        className="text-button"
-                        onClick={() => go("entries")}
-                      >
-                        Ver todos
-                        <ArrowRight size={14} />
-                      </button>
-                    </div>
-                    {table(periodEntries.slice(-5).reverse(), true)}
-                  </section>
-                  <section className="panel">
-                    <div className="panel-heading">
-                      <h2>Ações rápidas</h2>
-                    </div>
-                    <div className="quick-actions">
-                      <button
-                        onClick={() =>
-                          open("entry", undefined, {
-                            type: "income",
-                            category: "Serviços",
-                          })
-                        }
-                      >
-                        <ArrowDownLeft className="positive" />
-                        Registrar entrada
-                        <Plus size={16} />
-                      </button>
-                      <button onClick={() => open("entry")}>
-                        <ArrowUpRight className="outgoing" />
-                        Registrar saída
-                        <Plus size={16} />
-                      </button>
-                      <button
-                        onClick={() =>
-                          open("entry", undefined, {
-                            category: "Combustível",
-                            fuel: {
-                              liters: "",
-                              odometer: "",
-                              station: "",
-                              fuelType: "",
-                            },
-                          })
-                        }
-                      >
-                        <Fuel className="accent" />
-                        Abastecimento
-                        <Plus size={16} />
-                      </button>
-                    </div>
-                    <h3 className="minor-title">Próximas pendências</h3>
-                    {pending
-                      .sort((a, b) =>
-                        (a.due || "9999").localeCompare(b.due || "9999"),
-                      )
-                      .slice(0, 3)
-                      .map((e) => (
-                        <button
-                          key={e.id}
-                          className="pending-item"
-                          onClick={() => open("entry", e)}
-                        >
-                          <span>
-                            {e.description}
-                            <small>
-                              {e.due ? br(e.due) : "Sem vencimento"}
-                            </small>
-                          </span>
-                          <strong>{money(balance(e)!)}</strong>
-                        </button>
-                      ))}
-                    {!pending.length && (
-                      <p className="muted pad">
-                        Sem compromissos confirmados em aberto.
-                      </p>
-                    )}
-                  </section>
-                </div>
-              ) : (
-                <>
-                  <section className="panel">
-                    <div className="panel-heading">
-                      <h2>Evolução do fluxo registrado</h2>
-                      <span className="muted">
-                        Acumulado no ano · não é saldo bancário
-                      </span>
-                    </div>
-                    <div className="chart">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={evolution}>
-                          <XAxis
-                            dataKey="name"
-                            tick={{ fill: "var(--muted)" }}
-                          />
-                          <YAxis tick={{ fill: "var(--muted)" }} />
-                          <Tooltip
-                            formatter={(v) =>
-                              money(Math.round(Number(v) * 100))
-                            }
-                          />
-                          <Area
-                            isAnimationActive={false}
-                            dataKey="Fluxo"
-                            stroke="var(--chart-income, #2d6a51)"
-                            fill="var(--chart-income, #2d6a51)"
-                            fillOpacity={0.12}
-                          />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </section>
-                  <div className="report-groups">
-                    {[
-                      "category",
-                      "vehicleId",
-                      "employeeId",
-                      "recurrenceId",
-                    ].map((key) => (
-                      <section className="panel" key={key}>
-                        <div className="panel-heading">
-                          <h2>
-                            {
-                              {
-                                category: "Por categoria",
-                                vehicleId: "Por veículo",
-                                employeeId: "Colaboradores",
-                                recurrenceId: "Despesas recorrentes",
-                              }[key]
-                            }
-                          </h2>
-                        </div>
-                        {!reportEntries.some((e) =>
-                          Boolean((e as any)[key]),
-                        ) && (
-                          <p className="empty-report">
-                            {key === "employeeId"
-                              ? "Nenhum pagamento de colaborador neste período."
-                              : key === "vehicleId"
-                                ? "Nenhum custo de veículo identificado neste período."
-                                : key === "recurrenceId"
-                                  ? "Nenhuma despesa recorrente neste período."
-                                  : "Nenhum valor confirmado nesta perspectiva e período."}
-                          </p>
-                        )}
-                        {Array.from(
-                          new Set(
-                            reportEntries
-                              .map((e) => (e as any)[key])
-                              .filter(Boolean),
-                          ),
-                        ).map((value) => {
-                          const es = reportEntries.filter(
-                            (e) => (e as any)[key] === value,
-                          );
-                          const t = totals(es, year, month, basis);
-                          return (
-                            <button
-                              className="summary-row"
-                              key={String(value)}
-                              onClick={() => {
-                                go(
-                                  "entries",
-                                  basis === "cash" ? "cash-expense" : "expense",
-                                );
-                                if (key === "category")
-                                  setCategory(String(value));
-                                if (key === "vehicleId")
-                                  setVehicle(String(value));
-                              }}
-                            >
-                              <span>
-                                {records.find((r) => r.id === value)?.name ||
-                                  records.find((r) => r.id === value)
-                                    ?.description ||
-                                  value}
-                              </span>
-                              <strong>
-                                <small>Entradas {money(t.income)}</small>Saídas{" "}
-                                {money(t.expense)}
-                              </strong>
-                            </button>
-                          );
-                        })}
-                      </section>
-                    ))}
-                  </div>
-                  <div className="toolbar pad">
-                    <div className="search">
-                      <Search size={16} />
-                      <input
-                        aria-label="Pesquisar relatório"
-                        placeholder="Pesquisar registros de origem"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                      />
-                    </div>
-                    <select
-                      aria-label="Categoria do relatório"
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
+              <div className="lower-grid">
+                <section className="panel">
+                  <div className="panel-heading">
+                    <h2>Lançamentos recentes</h2>
+                    <button
+                      className="text-button"
+                      onClick={() => go("entries")}
                     >
-                      <option value="">Todas as categorias</option>
-                      {cats.map((c) => (
-                        <option key={c}>{c}</option>
-                      ))}
-                    </select>
-                    <a
-                      className="button"
-                      href={
-                        "/api/export?" +
-                        new URLSearchParams({
-                          year,
-                          month,
-                          basis,
-                          search,
-                          category,
-                          vehicle,
+                      Ver todos
+                      <ArrowRight size={14} />
+                    </button>
+                  </div>
+                  {table(periodEntries.slice(-5).reverse(), true)}
+                </section>
+                <section className="panel">
+                  <div className="panel-heading">
+                    <h2>Ações rápidas</h2>
+                  </div>
+                  <div className="quick-actions">
+                    <button
+                      onClick={() =>
+                        open("entry", undefined, {
+                          type: "income",
+                          category: "Serviços",
                         })
                       }
                     >
-                      Exportar dados filtrados
-                    </a>
+                      <ArrowDownLeft className="positive" />
+                      Registrar entrada
+                      <Plus size={16} />
+                    </button>
+                    <button onClick={() => open("entry")}>
+                      <ArrowUpRight className="outgoing" />
+                      Registrar saída
+                      <Plus size={16} />
+                    </button>
+                    <button
+                      onClick={() =>
+                        open("entry", undefined, {
+                          category: "Combustível",
+                          fuel: {
+                            liters: "",
+                            odometer: "",
+                            station: "",
+                            fuelType: "",
+                          },
+                        })
+                      }
+                    >
+                      <Fuel className="accent" />
+                      Abastecimento
+                      <Plus size={16} />
+                    </button>
                   </div>
-                  {table(filtered)}
-                </>
-              )}
+                  <h3 className="minor-title">Próximas pendências</h3>
+                  {pending
+                    .sort((a, b) =>
+                      (a.due || "9999").localeCompare(b.due || "9999"),
+                    )
+                    .slice(0, 3)
+                    .map((e) => (
+                      <button
+                        key={e.id}
+                        className="pending-item"
+                        onClick={() => open("entry", e)}
+                      >
+                        <span>
+                          {e.description}
+                          <small>{e.due ? br(e.due) : "Sem vencimento"}</small>
+                        </span>
+                        <strong>{money(balance(e)!)}</strong>
+                      </button>
+                    ))}
+                  {!pending.length && (
+                    <p className="muted pad">
+                      Sem compromissos confirmados em aberto.
+                    </p>
+                  )}
+                </section>
+              </div>
             </>
           )}
           {page === "entries" && (
