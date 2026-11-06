@@ -1,5 +1,11 @@
 # Produto
 
+## Cadastro de clientes e abrangência dos gastos
+
+Em 05/11/2026, o usuário solicitou nome/apelido, telefone, endereço e descrição/observações para clientes, além do histórico de todos os seus serviços. A ficha oferece Contato, Endereço e Serviços; o histórico ignora os filtros globais de mês/ano e mantém situação operacional, financeira e preço desconhecido. Os novos campos são opcionais e os dados anteriores de contato e observações são preservados.
+
+O usuário confirmou que a visão geral deve incluir também gastos ainda não pagos. O resumo por competência reúne todas as origens uma única vez e separa gastos totais, baixas vinculadas e saldo a pagar. O fluxo de caixa continua separado, pela data da baixa. Despesas sem valor ou a conferir são informadas e ficam fora do total confirmado; canceladas e baixas estornadas não compõem os totais.
+
 ## Platform
 
 web

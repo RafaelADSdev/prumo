@@ -8,6 +8,7 @@ import {
   parseMoney,
   recurrenceDate,
   Entry,
+  expenseSummary,
 } from "../src/lib/finance";
 import { prepare } from "../src/lib/importer";
 import { zipSync, strToU8 } from "fflate";
@@ -25,6 +26,39 @@ const entry = (extra: any = {}) =>
     }),
   }) as Entry;
 describe("regras financeiras", () => {
+  it("engloba todas as origens de gastos sem duplicar e separa pagos de pendentes", () => {
+    const rows = [
+      entry({ type: "expense", amount: 10000, recurrenceId: "fixa" }),
+      entry({
+        type: "expense",
+        amount: 20000,
+        vehicleId: "carro",
+        discount: 1000,
+        payments: [
+          { id: "p", amount: 5000, date: "2027-01-01", method: "Pix" },
+          { id: "v", amount: 1000, date: null, method: "Pix", voided: true },
+        ],
+      }),
+      entry({ type: "expense", amount: 30000, employeeId: "equipe" }),
+      entry({ type: "expense", amount: 40000 }),
+      entry({ type: "expense", amount: null }),
+      entry({ type: "expense", review: true }),
+      entry({ type: "expense", cancelled: true }),
+      entry({ type: "expense", competence: "2025-12-01" }),
+      entry(),
+    ];
+    const result = expenseSummary(rows, "2026", "12");
+    expect(result.total).toBe(99000);
+    expect(result.paid).toBe(5000);
+    expect(result.outstanding).toBe(94000);
+    expect(result.unresolved).toBe(2);
+    expect(result.groups.reduce((sum, group) => sum + group.amount, 0)).toBe(
+      result.total,
+    );
+    expect(result.groups.map((group) => group.amount)).toEqual([
+      10000, 19000, 30000, 40000,
+    ]);
+  });
   it("preserva centavos sem erro de ponto flutuante", () => {
     expect(
       parseMoney("71,95") +

@@ -77,6 +77,15 @@ export const schemas = {
   entry: entrySchema,
   client: z.object({
     name: text.min(1),
+    nickname: text.default(""),
+    phone: text.default(""),
+    street: text.default(""),
+    number: text.default(""),
+    complement: text.default(""),
+    neighborhood: text.default(""),
+    city: text.default(""),
+    state: text.default(""),
+    zipCode: text.default(""),
     contact: text.default(""),
     notes: text.default(""),
   }),
@@ -207,4 +216,50 @@ export function totals(
 export function recurrenceDate(year: number, month: number, day: number) {
   const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
   return `${year}-${String(month).padStart(2, "0")}-${String(Math.min(day, last)).padStart(2, "0")}`;
+}
+
+// Use a single cohort of expenses so total = paid + outstanding, even when
+// payments happen in another month. Cash totals keep their payment-date basis.
+export function expenseSummary(entries: Entry[], year: string, month: string) {
+  const groups = [
+    { name: "Despesas fixas", amount: 0 },
+    { name: "Veículos", amount: 0 },
+    { name: "Colaboradores", amount: 0 },
+    { name: "Demais gastos", amount: 0 },
+  ];
+  let total = 0,
+    paidAmount = 0,
+    unresolved = 0;
+  for (const entry of entries) {
+    if (
+      entry.type !== "expense" ||
+      entry.cancelled ||
+      !inPeriod(entry.competence, year, month)
+    )
+      continue;
+    if (entry.review || entry.amount === null) {
+      unresolved++;
+      continue;
+    }
+    const amount = entry.amount - entry.discount;
+    total += amount;
+    paidAmount += paid(entry);
+    const group =
+      entry.recurrenceId || entry.category === "Despesas fixas"
+        ? 0
+        : entry.vehicleId ||
+            ["Combustível", "Manutenção de veículos"].includes(entry.category)
+          ? 1
+          : entry.employeeId || entry.category === "Colaboradores"
+            ? 2
+            : 3;
+    groups[group].amount += amount;
+  }
+  return {
+    total,
+    paid: paidAmount,
+    outstanding: total - paidAmount,
+    unresolved,
+    groups,
+  };
 }

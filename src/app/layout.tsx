@@ -4,6 +4,7 @@ import "./experience.css";
 import "./login.css";
 import "./settings.css";
 import "./theme.css";
+import "./clients.css";
 import { themeBootScript } from "@/lib/theme";
 import type { Metadata } from "next";
 export const metadata: Metadata = {

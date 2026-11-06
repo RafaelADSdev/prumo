@@ -1,6 +1,7 @@
 "use client";
 import { LoginScreen } from "@/components/login-screen";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ClientProfile } from "@/components/client-profile";
 import { CommandPalette } from "@/components/command-palette";
 import { useMotion } from "@/hooks/use-motion";
 import { changeView, revealDialog, dismissDialog } from "@/lib/motion";
@@ -60,6 +61,8 @@ import {
   balance,
   status,
   inPeriod,
+  schemas,
+  expenseSummary,
 } from "@/lib/finance";
 type Rec = Record<string, any>;
 const months = [
@@ -158,6 +161,7 @@ export default function App({
   cloudStorage?: boolean;
 }) {
   const motion = useMotion();
+  const [selectedClientId, setSelectedClientId] = useState("");
   const [commandOpen, setCommandOpen] = useState(false),
     [hasLoaded, setHasLoaded] = useState(false);
   const [backupFilename, setBackupFilename] = useState("");
@@ -329,6 +333,10 @@ export default function App({
   );
   const cash = totals(entries, year, month),
     report = totals(entries, year, month, basis);
+  const selectedClient = clients.find(
+    (client) => client.id === selectedClientId,
+  );
+  const expenses = expenseSummary(entries, year, month);
   const pending = periodEntries.filter(
     (e) => !e.review && balance(e) !== null && (balance(e) || 0) > 0,
   );
@@ -429,6 +437,15 @@ export default function App({
       model: "",
       plate: "",
       contact: "",
+      nickname: "",
+      phone: "",
+      street: "",
+      number: "",
+      complement: "",
+      neighborhood: "",
+      city: "",
+      state: "",
+      zipCode: "",
       clientId: "",
       date: iso(),
       status: "Em andamento",
@@ -941,6 +958,64 @@ export default function App({
                   ? "Saldo inicial não informado. Os valores representam a movimentação registrada."
                   : `Saldo inicial de ${money(settings.initialBalance)} em ${br(settings.initialDate)}. Movimentação registrada não confirma saldo bancário.`}
               </div>
+              {page === "overview" && (
+                <section
+                  className="panel expense-summary"
+                  aria-labelledby="expense-summary-title"
+                >
+                  <div className="panel-heading">
+                    <div>
+                      <h2 id="expense-summary-title">
+                        Todos os gastos do período
+                      </h2>
+                      <p>
+                        Pelo mês da despesa · fixas, veículos, colaboradores e
+                        demais gastos.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() => go("entries", "expense")}
+                    >
+                      Ver gastos
+                      <ArrowRight size={14} />
+                    </button>
+                  </div>
+                  <dl className="expense-summary-values">
+                    <div>
+                      <dt>Gastos totais</dt>
+                      <dd>{money(expenses.total)}</dd>
+                    </div>
+                    <div>
+                      <dt>Já pagos</dt>
+                      <dd>{money(expenses.paid)}</dd>
+                    </div>
+                    <div>
+                      <dt>A pagar</dt>
+                      <dd>{money(expenses.outstanding)}</dd>
+                    </div>
+                  </dl>
+                  <dl className="expense-origins">
+                    {expenses.groups.map((group) => (
+                      <div key={group.name}>
+                        <dt>{group.name}</dt>
+                        <dd>{money(group.amount)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <p className="expense-summary-note">
+                    Pagos considera as baixas dessas despesas, mesmo quando
+                    feitas em outro mês.{" "}
+                    {expenses.unresolved > 0 && (
+                      <span>
+                        {expenses.unresolved} gasto(s) a conferir ou sem valor
+                        ficam fora dos totais até a confirmação.
+                      </span>
+                    )}
+                  </p>
+                </section>
+              )}
               {page === "reports" && (
                 <div className="toolbar">
                   <div className="segmented">
@@ -1436,7 +1511,16 @@ export default function App({
           {page === "services" && (
             <>
               <div className="toolbar">
-                <button className="primary" onClick={() => open("service")}>
+                <button
+                  className="primary"
+                  onClick={() =>
+                    open(
+                      "service",
+                      undefined,
+                      selectedClient ? { clientId: selectedClient.id } : {},
+                    )
+                  }
+                >
                   <Plus size={16} />
                   Novo serviço
                 </button>
@@ -1445,114 +1529,170 @@ export default function App({
                   Novo cliente
                 </button>
               </div>
-              <section className="panel">
-                <div className="panel-heading">
-                  <h2>Serviços do período</h2>
-                  <span className="muted">
-                    Operação e recebimento separados
-                  </span>
-                </div>
-                <div className="table-scroll">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Serviço / cliente</th>
-                        <th>Data</th>
-                        <th>Operação</th>
-                        <th>Financeiro</th>
-                        <th>Valor</th>
-                        <th />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {records
-                        .filter(
-                          (r) =>
-                            r.kind === "service" &&
-                            inPeriod(r.competence || r.date, year, month),
-                        )
-                        .map((s) => {
-                          const e = entries.find((e) => e.serviceId === s.id);
-                          return (
-                            <tr key={s.id}>
-                              <td>
-                                <strong>{s.description}</strong>
-                                <small>
-                                  {
-                                    clients.find((c) => c.id === s.clientId)
-                                      ?.name
-                                  }
-                                </small>
-                              </td>
-                              <td>{br(s.date)}</td>
-                              <td>{s.status}</td>
-                              <td>{e ? status(e) : "A conferir"}</td>
-                              <td>
-                                {e?.amount === null
-                                  ? "Sem preço"
-                                  : money(
-                                      (e?.amount || 0) - (e?.discount || 0),
-                                    )}
-                              </td>
-                              <td>
-                                <button onClick={() => open("service", s)}>
-                                  Editar
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
-                {!records.some(
-                  (r) =>
-                    r.kind === "service" &&
-                    inPeriod(r.competence || r.date, year, month),
-                ) && (
-                  <div className="empty">
-                    <BriefcaseBusiness size={28} />
-                    <h3>Nenhum serviço neste período</h3>
-                    <p>
-                      {clients.length
-                        ? "Adicione um serviço e acompanhe os recebimentos na mesma origem."
-                        : "Comece cadastrando um cliente para vincular seus serviços."}
-                    </p>
-                    <button
-                      onClick={() =>
-                        open(clients.length ? "service" : "client")
-                      }
-                    >
-                      {clients.length ? "Novo serviço" : "Cadastrar cliente"}
-                    </button>
-                  </div>
-                )}
-              </section>
-              <section className="panel">
-                <div className="panel-heading">
-                  <h2>Clientes</h2>
-                </div>
-                {clients.map((c) => (
-                  <button
-                    className="summary-row"
-                    key={c.id}
-                    onClick={() => open("client", c)}
-                  >
-                    <span>
-                      {c.name}
-                      <small>{c.contact}</small>
-                    </span>
-                    <Pencil size={16} />
-                  </button>
-                ))}
-                {!clients.length && (
-                  <div className="empty">
-                    <p>
-                      Cadastre seu primeiro cliente para vincular um serviço.
-                    </p>
-                  </div>
-                )}
-              </section>
+              {selectedClient ? (
+                <ClientProfile
+                  key={selectedClient.id}
+                  client={{
+                    id: selectedClient.id,
+                    ...schemas.client.parse(selectedClient),
+                  }}
+                  services={records
+                    .filter(
+                      (r) =>
+                        r.kind === "service" &&
+                        r.clientId === selectedClient.id,
+                    )
+                    .map((service) => {
+                      const entry = entries.find(
+                        (entry) => entry.serviceId === service.id,
+                      );
+                      return {
+                        id: service.id,
+                        description: service.description,
+                        date: service.date,
+                        status: service.status,
+                        financialStatus: entry ? status(entry) : "A conferir",
+                        amount:
+                          entry?.amount == null
+                            ? null
+                            : entry.amount - entry.discount,
+                      };
+                    })
+                    .sort((a, b) => (b.date || "").localeCompare(a.date || ""))}
+                  onClose={() => setSelectedClientId("")}
+                  onEdit={() => open("client", selectedClient)}
+                  onNewService={() =>
+                    open("service", undefined, { clientId: selectedClient.id })
+                  }
+                  onEditService={(id) =>
+                    open(
+                      "service",
+                      records.find((r) => r.id === id),
+                    )
+                  }
+                />
+              ) : (
+                <>
+                  <section className="panel">
+                    <div className="panel-heading">
+                      <h2>Serviços do período</h2>
+                      <span className="muted">
+                        Operação e recebimento separados
+                      </span>
+                    </div>
+                    <div className="table-scroll">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Serviço / cliente</th>
+                            <th>Data</th>
+                            <th>Operação</th>
+                            <th>Financeiro</th>
+                            <th>Valor</th>
+                            <th />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {records
+                            .filter(
+                              (r) =>
+                                r.kind === "service" &&
+                                inPeriod(r.competence || r.date, year, month),
+                            )
+                            .map((s) => {
+                              const e = entries.find(
+                                (e) => e.serviceId === s.id,
+                              );
+                              return (
+                                <tr key={s.id}>
+                                  <td>
+                                    <strong>{s.description}</strong>
+                                    <small>
+                                      {
+                                        clients.find((c) => c.id === s.clientId)
+                                          ?.name
+                                      }
+                                    </small>
+                                  </td>
+                                  <td>{br(s.date)}</td>
+                                  <td>{s.status}</td>
+                                  <td>{e ? status(e) : "A conferir"}</td>
+                                  <td>
+                                    {e?.amount === null
+                                      ? "Sem preço"
+                                      : money(
+                                          (e?.amount || 0) - (e?.discount || 0),
+                                        )}
+                                  </td>
+                                  <td>
+                                    <button onClick={() => open("service", s)}>
+                                      Editar
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {!records.some(
+                      (r) =>
+                        r.kind === "service" &&
+                        inPeriod(r.competence || r.date, year, month),
+                    ) && (
+                      <div className="empty">
+                        <BriefcaseBusiness size={28} />
+                        <h3>Nenhum serviço neste período</h3>
+                        <p>
+                          {clients.length
+                            ? "Adicione um serviço e acompanhe os recebimentos na mesma origem."
+                            : "Comece cadastrando um cliente para vincular seus serviços."}
+                        </p>
+                        <button
+                          onClick={() =>
+                            open(clients.length ? "service" : "client")
+                          }
+                        >
+                          {clients.length
+                            ? "Novo serviço"
+                            : "Cadastrar cliente"}
+                        </button>
+                      </div>
+                    )}
+                  </section>
+                  <section className="panel">
+                    <div className="panel-heading">
+                      <h2>Clientes</h2>
+                    </div>
+                    {clients.map((c) => (
+                      <button
+                        className="summary-row"
+                        key={c.id}
+                        onClick={() => setSelectedClientId(c.id)}
+                        aria-label={`Ver cliente: ${c.name}`}
+                      >
+                        <span>
+                          {c.name}
+                          <small>
+                            {[c.nickname, c.phone || c.contact]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </small>
+                        </span>
+                        <ArrowRight size={16} />
+                      </button>
+                    ))}
+                    {!clients.length && (
+                      <div className="empty">
+                        <p>
+                          Cadastre seu primeiro cliente para vincular um
+                          serviço.
+                        </p>
+                      </div>
+                    )}
+                  </section>
+                </>
+              )}
             </>
           )}
           {page === "fixed" && (
@@ -2468,12 +2608,89 @@ export default function App({
                       />
                     </Field>
                     {editor.kind === "client" && (
-                      <Field label="Contato (opcional)">
-                        <input
-                          value={form.contact}
-                          onChange={(e) => set("contact", e.target.value)}
-                        />
-                      </Field>
+                      <>
+                        <Field label="Apelido (opcional)">
+                          <input
+                            value={form.nickname}
+                            onChange={(e) => set("nickname", e.target.value)}
+                          />
+                        </Field>
+                        <Field label="Telefone (opcional)">
+                          <input
+                            type="tel"
+                            autoComplete="tel"
+                            value={form.phone}
+                            onChange={(e) => set("phone", e.target.value)}
+                          />
+                        </Field>
+                        <Field label="Contato (opcional)">
+                          <input
+                            value={form.contact}
+                            onChange={(e) => set("contact", e.target.value)}
+                          />
+                        </Field>
+                        <details className="form-details" open>
+                          <summary>Endereço (opcional)</summary>
+                          <Field label="Rua / logradouro">
+                            <input
+                              autoComplete="street-address"
+                              value={form.street}
+                              onChange={(e) => set("street", e.target.value)}
+                            />
+                          </Field>
+                          <div className="form-grid">
+                            <Field label="Número">
+                              <input
+                                value={form.number}
+                                onChange={(e) => set("number", e.target.value)}
+                              />
+                            </Field>
+                            <Field label="Complemento">
+                              <input
+                                value={form.complement}
+                                onChange={(e) =>
+                                  set("complement", e.target.value)
+                                }
+                              />
+                            </Field>
+                            <Field label="Bairro">
+                              <input
+                                value={form.neighborhood}
+                                onChange={(e) =>
+                                  set("neighborhood", e.target.value)
+                                }
+                              />
+                            </Field>
+                            <Field label="Cidade">
+                              <input
+                                autoComplete="address-level2"
+                                value={form.city}
+                                onChange={(e) => set("city", e.target.value)}
+                              />
+                            </Field>
+                            <Field label="Estado / UF">
+                              <input
+                                autoComplete="address-level1"
+                                value={form.state}
+                                onChange={(e) => set("state", e.target.value)}
+                              />
+                            </Field>
+                            <Field label="CEP">
+                              <input
+                                autoComplete="postal-code"
+                                value={form.zipCode}
+                                onChange={(e) => set("zipCode", e.target.value)}
+                              />
+                            </Field>
+                          </div>
+                        </details>
+                        <Field label="Descrição / observações (opcional)">
+                          <textarea
+                            value={form.notes}
+                            onChange={(e) => set("notes", e.target.value)}
+                          />
+                        </Field>
+                      </>
                     )}
                     {editor.kind === "vehicle" && (
                       <div className="form-grid">
