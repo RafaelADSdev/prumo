@@ -27,3 +27,8 @@ O usuário solicitou melhorias no sistema completo, com animações e pesquisa d
 
 ## Acesso central escuro
 O usuário rejeitou integralmente o login claro com arte. Escolheu explicitamente “Escura e moderna, com animação discreta e formulário central”. Somente o acesso passa a usar grafite esverdeado, painel central de 440px, ação menta e linhas discretas com entrada finita. A área autenticada mantém marfim e verde. Sem foto, escultura ou composição promocional lateral. Autenticação e credenciais preservadas.
+
+
+## Temas claro e escuro
+
+Em 05/11/2026, o usuário solicitou modos claro e escuro no projeto e a animação do seu repositório RafaelADSdev/Plataforma-Video. A solicitação amplia a direção anterior: login central e área autenticada agora têm as duas paletas. Marfim e verde permanecem no claro; verde profundo e superfícies escuras no escuro. Botão de sol/lua no acesso e na barra superior, preferência local prumo-theme e preferência do sistema no primeiro acesso. Troca circular a partir do botão com alternativa imediata para teclado, movimento reduzido e navegadores sem View Transitions.

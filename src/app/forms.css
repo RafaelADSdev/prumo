@@ -10,11 +10,11 @@
   max-height: calc(100dvh - 64px);
   padding: 0;
   overflow: hidden;
-  border: 1px solid #d7e1d0;
+  border: 1px solid var(--theme-line, #d7e1d0);
   border-radius: 17px;
-  background: #fffefa;
+  background: var(--theme-surface, #fffefa);
   box-shadow: 0 24px 90px #162e2830;
-  color: #243f2d;
+  color: var(--theme-ink, #243f2d);
 }
 .editor-dialog[open],
 .confirmation-dialog[open] {
@@ -42,7 +42,7 @@
   flex: 0 0 auto;
   margin: 0;
   padding: 24px 28px 21px;
-  border-bottom: 1px solid #e0e7d8;
+  border-bottom: 1px solid var(--theme-line, #e0e7d8);
   gap: 20px;
   align-items: flex-start;
 }
@@ -53,12 +53,12 @@
   line-height: 1.35;
   letter-spacing: -0.025em;
   font-weight: 650;
-  color: #254c35;
+  color: var(--theme-ink, #254c35);
 }
 .editor-dialog .dialog-heading p {
   font-size: 13px;
   line-height: 1.7;
-  color: #61735c;
+  color: var(--theme-muted, #61735c);
   margin: 7px 0 0;
 }
 .editor-dialog .dialog-heading .icon-button {
@@ -66,12 +66,12 @@
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  color: #697a62;
+  color: var(--theme-muted, #697a62);
   flex-shrink: 0;
 }
 .editor-dialog .dialog-heading .icon-button:hover {
-  background: #edf3e7;
-  color: #214c32;
+  background: var(--theme-subtle, #edf3e7);
+  color: var(--theme-ink, #214c32);
 }
 .editor-dialog .editor-form {
   display: flex;
@@ -95,7 +95,7 @@
   line-height: 1.45;
   margin: 0 0 19px;
   gap: 8px;
-  color: #3b5c3d;
+  color: var(--theme-muted, #3b5c3d);
   min-width: 0;
 }
 .editor-dialog .field > span {
@@ -107,10 +107,10 @@
   font-size: 14px;
   min-height: 44px;
   padding: 10px 12px;
-  border: 1px solid #cdd9c5;
+  border: 1px solid var(--theme-line, #cdd9c5);
   border-radius: 8px;
-  background: #fffefb;
-  color: #294a34;
+  background: var(--theme-surface, #fffefb);
+  color: var(--theme-ink, #294a34);
   width: 100%;
   min-width: 0;
   line-height: 1.5;
@@ -118,9 +118,9 @@
 .editor-dialog input:not([type="checkbox"]):focus,
 .editor-dialog select:focus,
 .editor-dialog textarea:focus {
-  outline: 2px solid #6f8a62;
+  outline: 2px solid var(--theme-focus, #6f8a62);
   outline-offset: 2px;
-  border-color: #6f8a62;
+  border-color: var(--theme-line, #6f8a62);
 }
 .editor-dialog textarea {
   min-height: 78px;
@@ -138,21 +138,21 @@
 .editor-dialog .field-hint {
   font-size: 12px;
   line-height: 1.75;
-  color: #65765d;
+  color: var(--theme-muted, #65765d);
   margin: 0 0 20px;
 }
 .editor-dialog .form-content > p.muted {
   font-size: 13px;
   line-height: 1.7;
   margin: 0 0 20px;
-  color: #65765d;
+  color: var(--theme-muted, #65765d);
 }
 .editor-dialog .check-label {
   font-size: 13px;
   line-height: 1.6;
   gap: 11px;
   margin: 2px 0 19px;
-  color: #4a6845;
+  color: var(--theme-muted, #4a6845);
   align-items: center;
 }
 .editor-dialog input[type="checkbox"] {
@@ -163,22 +163,22 @@
 }
 .editor-dialog .form-details {
   margin: 2px 0 16px;
-  border: 1px solid #dee6d6;
+  border: 1px solid var(--theme-line, #dee6d6);
   border-radius: 9px;
-  background: #f9fbf5;
+  background: var(--theme-surface, #f9fbf5);
   padding: 0 16px;
 }
 .editor-dialog .form-details > summary {
   font-size: 13px;
   font-weight: 600;
   padding: 15px 0;
-  color: #476a42;
+  color: var(--theme-muted, #476a42);
   line-height: 1.5;
   min-height: 48px;
 }
 .editor-dialog .form-details[open] > summary {
   margin-bottom: 4px;
-  border-bottom: 1px solid #e4eadc;
+  border-bottom: 1px solid var(--theme-line, #e4eadc);
 }
 .editor-dialog .form-details[open] > .field:first-of-type {
   margin-top: 17px;
@@ -187,7 +187,7 @@
   font-size: 14px;
   font-weight: 650;
   line-height: 1.6;
-  color: #355936;
+  color: var(--theme-muted, #355936);
   margin: 4px 0 8px;
 }
 .editor-dialog .service-item {
@@ -195,8 +195,8 @@
   grid-template-columns: 1fr 1fr 1.25fr;
   gap: 15px;
   padding: 17px;
-  border: 1px solid #dce5d2;
-  background: #f8fbf2;
+  border: 1px solid var(--theme-line, #dce5d2);
+  background: var(--theme-surface, #f8fbf2);
   border-radius: 10px;
   margin: 16px 0;
 }
@@ -215,7 +215,7 @@
   font-size: 12px;
   padding: 4px 10px;
   background: transparent;
-  border-color: #d9e2d0;
+  border-color: var(--theme-line, #d9e2d0);
 }
 .editor-dialog .service-item + button {
   font-size: 13px;
@@ -229,8 +229,8 @@
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  background: #fffefa;
-  border-top: 1px solid #dfe7d5;
+  background: var(--theme-surface, #fffefa);
+  border-top: 1px solid var(--theme-line, #dfe7d5);
   margin: 0;
   padding: 18px 28px 20px;
   box-shadow: 0 -4px 12px #244b3210;
@@ -277,8 +277,8 @@
   gap: 13px;
   padding: 17px;
   min-height: 83px;
-  border: 1px dashed #bdcdb1;
-  background: #f7faf1;
+  border: 1px dashed var(--theme-line, #bdcdb1);
+  background: var(--theme-surface, #f7faf1);
   border-radius: 10px;
   cursor: pointer;
   margin: 19px 0 17px;
@@ -288,11 +288,11 @@
     border-color 0.15s;
 }
 .file-picker:hover {
-  background: #edf4e5;
-  border-color: #7d9b6e;
+  background: var(--theme-subtle, #edf4e5);
+  border-color: var(--theme-line, #7d9b6e);
 }
 .file-picker:focus-within {
-  outline: 2px solid #567c4b;
+  outline: 2px solid var(--theme-focus, #567c4b);
   outline-offset: 3px;
 }
 .file-picker-symbol {
@@ -301,7 +301,7 @@
   justify-content: center;
   width: 37px;
   height: 37px;
-  color: #55774c;
+  color: var(--theme-muted, #55774c);
   flex: 0 0 auto;
 }
 .file-picker-description {
@@ -314,18 +314,18 @@
 .file-picker-description strong {
   font-size: 13px;
   font-weight: 650;
-  color: #355b37;
+  color: var(--theme-muted, #355b37);
   line-height: 1.4;
 }
 .file-picker-description small {
   font-size: 12px;
   line-height: 1.5;
-  color: #65785c;
+  color: var(--theme-muted, #65785c);
   overflow-wrap: anywhere;
 }
 .file-picker-action {
   font-size: 12px;
-  color: #355e37;
+  color: var(--theme-muted, #355e37);
   font-weight: 600;
   flex-shrink: 0;
   padding: 6px 0 6px 9px;
@@ -376,7 +376,7 @@
 .audit-empty {
   font-size: 13px;
   line-height: 1.8;
-  color: #6a795f;
+  color: var(--theme-muted, #6a795f);
   padding: 2px 0 8px;
 }
 .workspace .topbar {
@@ -512,8 +512,8 @@
   }
   .workspace .topbar {
     height: 61px;
-    background: #fafaf5;
-    border-bottom: 1px solid #e0e6d9;
+    background: var(--theme-surface, #fafaf5);
+    border-bottom: 1px solid var(--theme-line, #e0e6d9);
   }
   .workspace main {
     padding-top: 25px;

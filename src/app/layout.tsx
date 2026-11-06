@@ -3,6 +3,8 @@ import "./forms.css";
 import "./experience.css";
 import "./login.css";
 import "./settings.css";
+import "./theme.css";
+import { themeBootScript } from "@/lib/theme";
 import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Prumo — seu financeiro em equilíbrio",
@@ -12,7 +14,10 @@ export const metadata: Metadata = {
 };
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+      </head>
       <body>{children}</body>
     </html>
   );

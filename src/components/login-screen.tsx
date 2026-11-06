@@ -11,6 +11,7 @@ import {
   CircleAlert,
 } from "lucide-react";
 import { Brand } from "./brand";
+import { ThemeToggle } from "./theme-toggle";
 
 export function LoginScreen({
   busy,
@@ -26,6 +27,9 @@ export function LoginScreen({
   const [showPassword, setShowPassword] = useState(false);
   return (
     <main className="access-page">
+      <div className="access-theme">
+        <ThemeToggle />
+      </div>
       <div className="access-backdrop" aria-hidden="true">
         <svg
           viewBox="0 0 1440 900"

@@ -17,7 +17,7 @@
   min-width: 0;
   margin: 0;
   padding: 24px;
-  border-color: var(--border, #e2e7dd);
+  border-color: var(--border, var(--theme-line, #e2e7dd));
   box-shadow: none;
 }
 .settings-page .settings-panel h2 {
@@ -27,7 +27,7 @@
   line-height: 1.4;
 }
 .settings-page .settings-panel p {
-  color: #596e54;
+  color: var(--theme-muted, #596e54);
   line-height: 1.65;
   margin: 8px 0 20px;
 }
@@ -47,7 +47,7 @@
 }
 .settings-page .organization-details dt {
   font-size: 12px;
-  color: #596e54;
+  color: var(--theme-muted, #596e54);
   margin-bottom: 6px;
 }
 .settings-page .organization-details dd {
@@ -56,7 +56,7 @@
   overflow-wrap: anywhere;
 }
 .settings-page .settings-years {
-  border-top: 1px solid #e2e7dd;
+  border-top: 1px solid var(--theme-line, #e2e7dd);
   margin-top: 22px;
   padding-top: 18px;
   display: flex;
@@ -74,8 +74,8 @@
   flex-wrap: wrap;
 }
 .year-list > span {
-  background: #f0f3eb;
-  border: 1px solid #e2e7dd;
+  background: var(--theme-subtle, #f0f3eb);
+  border: 1px solid var(--theme-line, #e2e7dd);
   border-radius: 6px;
   padding: 4px 9px;
   font-size: 12px;
@@ -95,8 +95,8 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  background: #edf3e5;
-  border-color: #dce6d1;
+  background: var(--theme-subtle, #edf3e5);
+  border-color: var(--theme-line, #dce6d1);
 }
 .settings-page .appearance-panel > div {
   padding: 0;
@@ -126,7 +126,7 @@
 }
 .settings-page .appearance-panel > small {
   padding: 0;
-  color: #49623f;
+  color: var(--theme-muted, #49623f);
 }
 .settings-page .support-panel {
   grid-column: 1 / -1;
@@ -134,7 +134,7 @@
 .settings-shortcuts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-top: 1px solid #e2e7dd;
+  border-top: 1px solid var(--theme-line, #e2e7dd);
 }
 .settings-page .settings-shortcuts button {
   width: 100%;
@@ -149,7 +149,7 @@
   box-shadow: none;
 }
 .settings-shortcuts button + button {
-  border-left: 1px solid #e2e7dd !important;
+  border-left: 1px solid var(--theme-line, #e2e7dd) !important;
 }
 .settings-shortcuts button > span {
   min-width: 0;
@@ -162,7 +162,7 @@
 .settings-shortcuts small {
   display: block;
   margin-top: 5px;
-  color: #596e54;
+  color: var(--theme-muted, #596e54);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -170,7 +170,7 @@
   flex-shrink: 0;
 }
 .settings-page .settings-shortcuts button:hover {
-  background: #f5f7f1;
+  background: var(--theme-surface, #f5f7f1);
 }
 .settings-page .support-panel .summary-row {
   margin-top: 10px;
@@ -181,7 +181,7 @@
 }
 .settings-page .file-picker {
   margin: 18px 0 0;
-  background: #fafbf7;
+  background: var(--theme-surface, #fafbf7);
 }
 .settings-page .spreadsheet-panel > button {
   margin-top: 16px;
@@ -243,7 +243,7 @@
   }
   .settings-shortcuts button + button {
     border-left: 0 !important;
-    border-top: 1px solid #e2e7dd;
+    border-top: 1px solid var(--theme-line, #e2e7dd);
   }
   .settings-page .settings-years .inline-form {
     width: 100%;

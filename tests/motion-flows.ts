@@ -167,7 +167,8 @@ export async function assertCashBars(page: Page) {
     const paths = Array.from(
       el.querySelectorAll(".recharts-bar-rectangle path"),
     ).map((p) => ({
-      fill: p.getAttribute("fill"),
+      income: Boolean(p.closest(".cash-income")),
+      expense: Boolean(p.closest(".cash-outgoing")),
       height: p.getBoundingClientRect().height,
     }));
     return {
@@ -177,11 +178,11 @@ export async function assertCashBars(page: Page) {
           : 0,
       income: Math.max(
         0,
-        ...paths.filter((p) => p.fill === "#34765a").map((p) => p.height),
+        ...paths.filter((p) => p.income).map((p) => p.height),
       ),
       expense: Math.max(
         0,
-        ...paths.filter((p) => p.fill === "#b0795d").map((p) => p.height),
+        ...paths.filter((p) => p.expense).map((p) => p.height),
       ),
     };
   });

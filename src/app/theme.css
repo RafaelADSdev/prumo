@@ -1,0 +1,174 @@
+/* Shared theme tokens; light fallbacks preserve the original ivory palette. */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --theme-ink: #e4eee7;
+  --theme-muted: #afc1b4;
+  --theme-surface: #18241e;
+  --theme-subtle: #1c2b23;
+  --theme-inset: #25382d;
+  --theme-line: #3e5447;
+  --theme-focus: #acd8b9;
+  --theme-danger: #efb29c;
+  --theme-warm-bg: #392b23;
+  --bg: #101914;
+  --panel: #18241e;
+  --border: #3e5447;
+  --muted: #afc1b4;
+  --accent: #acd8b9;
+  --green: #8ed4a8;
+  --orange: #e7ae8d;
+  --chart-income: #8ed4a8;
+  --chart-outgoing: #e7ae8d;
+  --prumo-ink: #e4eee7;
+  --prumo-muted: #afc1b4;
+  --prumo-canvas: #101914;
+  --prumo-paper: #18241e;
+  --prumo-line: #3e5447;
+}
+
+html[data-theme="dark"] .positive {
+  color: var(--green);
+}
+html[data-theme="dark"] .outgoing {
+  color: var(--orange);
+}
+html[data-theme="dark"] .recharts-default-tooltip {
+  background: var(--panel) !important;
+  border-color: var(--border) !important;
+  color: var(--prumo-ink) !important;
+}
+html[data-theme="dark"] .status.settled {
+  color: #a5ddb6;
+}
+html[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+html[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #4e6857;
+}
+
+.theme-toggle {
+  position: relative;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--prumo-ink);
+  background: var(--prumo-paper);
+  border: 1px solid var(--prumo-line);
+  border-radius: 9px;
+}
+.theme-toggle:hover {
+  background: var(--theme-inset, #e6ede2);
+}
+.theme-icon-sun {
+  display: none;
+}
+html[data-theme="dark"] .theme-icon-moon {
+  display: none;
+}
+html[data-theme="dark"] .theme-icon-sun {
+  display: block;
+}
+.access-theme {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 1;
+}
+
+/* The same centered access form, now available in both palettes. */
+html[data-theme="light"] .access-page {
+  --access-ink: #193b2b;
+  --access-secondary: #526958;
+  --access-accent: #214f39;
+  background: #f4f3ee;
+  color-scheme: light;
+}
+html[data-theme="light"] .access-panel {
+  background: #fffefa;
+  border-color: #cbd7c9;
+  box-shadow: 0 24px 70px -24px #193b2b30;
+}
+html[data-theme="light"] .access-field {
+  color: #294a34;
+}
+html[data-theme="light"] .access-input {
+  background: #fff;
+  border-color: #78917d;
+}
+html[data-theme="light"] .access-input:focus-within {
+  background: #fafcf8;
+  box-shadow: 0 0 0 3px #214f391a;
+}
+html[data-theme="light"] .access-input > svg,
+html[data-theme="light"] .access-input input::placeholder {
+  color: #586f5e;
+}
+html[data-theme="light"] .access-input input:-webkit-autofill {
+  -webkit-text-fill-color: #193b2b;
+  box-shadow: 0 0 0 60px #fafcf8 inset;
+  caret-color: #214f39;
+}
+html[data-theme="light"] .access-password {
+  color: #526958;
+}
+html[data-theme="light"] .access-password:hover {
+  color: #193b2b;
+  background: #e6ede2;
+}
+html[data-theme="light"] .access-submit {
+  color: #fff;
+  border-color: #214f39;
+}
+html[data-theme="light"] .access-submit:hover {
+  background: #173f2d;
+  border-color: #173f2d;
+}
+html[data-theme="light"] .access-security {
+  color: #526958;
+  border-color: #cbd7c9;
+}
+html[data-theme="light"] .access-security svg {
+  color: #214f39;
+}
+html[data-theme="light"] .access-setup {
+  color: #526958;
+}
+html[data-theme="light"] .access-setup code {
+  color: #193b2b;
+}
+html[data-theme="light"] .access-error {
+  background: #f9eeea;
+  border-color: #d7a99b;
+  color: #923d2e;
+}
+html[data-theme="light"] .access-line {
+  stroke: #d5dfd0;
+}
+html[data-theme="light"] .access-page button:focus-visible {
+  outline-color: #214f39;
+}
+
+/* Circular reveal from Plataforma-Video. Other page animations stay independent. */
+::view-transition {
+  pointer-events: none;
+}
+html.theme-changing::view-transition-old(root),
+html.theme-changing::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+html.theme-changing::view-transition-old(root) {
+  z-index: 1;
+}
+html.theme-changing::view-transition-new(root) {
+  z-index: 2;
+}
+
+@media print {
+  .theme-toggle,
+  .access-theme {
+    display: none;
+  }
+}

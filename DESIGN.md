@@ -320,3 +320,10 @@ WAAPI revela páginas e diálogos em (240ms); saída de diálogo por ponteiro us
 - **Don't** substitua preço desconhecido por zero.
 
 Não canonizado: CSS sobrescrito e composições anteriores não são autoridade. Alguns textos auxiliares de 10–11px, a nota técnica do primeiro acesso são limitações do build, não padrões para novos conteúdos essenciais.
+
+
+## Temas — atualização solicitada em 05/11/2026
+
+Esta seção substitui a restrição anterior de reservar a paleta escura somente ao acesso. Login e área autenticada oferecem claro e escuro, preservando composição, marca e verde. O claro mantém as cores existentes; tokens --theme-* aplicam superfícies (#18241e), fundo (#101914), texto (#e4eee7), texto secundário (#afc1b4) e contornos (#3e5447) no escuro. Sidebar e métrica de resultado preservam suas superfícies verdes. Gráficos, formulários e diálogos acompanham o tema.
+
+Botão de 44px com lua no claro e sol no escuro. Preferência local prumo-theme aplicada antes da primeira pintura; ausência de preferência segue o sistema na abertura. Revelação circular de 560ms, cubic-bezier(0.16,1,0.3,1), centrada no botão, adaptada de https://github.com/RafaelADSdev/Plataforma-Video/blob/main/src/components/theme-toggle.tsx. View Transitions são usadas somente nessa troca; a navegação existente continua em WAAPI. Movimento local desativado, preferência do sistema reduzida, teclado e ausência de suporte mudam o tema imediatamente. Cliques repetidos durante a revelação são ignorados e falhas da animação preservam a troca.

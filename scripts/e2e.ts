@@ -1,4 +1,5 @@
 import { reviewLogin } from "../tests/login-flows";
+import { reviewTheme } from "../tests/theme-flows";
 import { reviewMotion, assertCashBars } from "../tests/motion-flows";
 import { reviewForms } from "../tests/ui-flows";
 import { reviewTemplate } from "../tests/template-flows";
@@ -221,9 +222,19 @@ try {
     ].find(existsSync),
   });
   const loginContext = await browser.newContext({
+    colorScheme: "dark",
     viewport: { width: 1440, height: 950 },
   });
   const loginPage = await loginContext.newPage();
+  if (process.argv.includes("--review-theme")) {
+    await reviewTheme(loginPage, base, "login");
+    await loginPage
+      .getByRole("button", { name: "Alternar entre modo claro e escuro" })
+      .click();
+    await loginPage.waitForFunction(
+      () => !document.documentElement.classList.contains("theme-changing"),
+    );
+  }
   await reviewLogin(loginPage, base);
   await loginPage
     .getByLabel("E-mail", { exact: true })
@@ -253,6 +264,8 @@ try {
     { name: "finance-session", value: cookie.split("=")[1], url: base },
   ]);
   const page = await context.newPage();
+  if (process.argv.includes("--review-theme"))
+    await reviewTheme(page, base, "workspace");
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(base + "/?year=2027&month=all");

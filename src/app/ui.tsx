@@ -1,5 +1,6 @@
 "use client";
 import { LoginScreen } from "@/components/login-screen";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { CommandPalette } from "@/components/command-palette";
 import { useMotion } from "@/hooks/use-motion";
 import { changeView, revealDialog, dismissDialog } from "@/lib/motion";
@@ -727,6 +728,7 @@ export default function App({
             </button>
           </div>
           <div className="workspace-tools">
+            <ThemeToggle />
             <button
               className="command-trigger"
               aria-label="Abrir navegação rápida"
@@ -1003,7 +1005,7 @@ export default function App({
                         >
                           <CartesianGrid
                             vertical={false}
-                            stroke="#e6e9e0"
+                            stroke="var(--prumo-line)"
                             strokeDasharray="3 5"
                           />
                           <XAxis
@@ -1015,22 +1017,22 @@ export default function App({
                             tickMargin={compactChart ? 10 : 8}
                             axisLine={false}
                             tickLine={false}
-                            tick={{ fill: "#596e54", fontSize: 12 }}
+                            tick={{ fill: "var(--muted)", fontSize: 12 }}
                           />
                           <YAxis
                             axisLine={false}
                             tickLine={false}
-                            tick={{ fill: "#596e54", fontSize: 12 }}
+                            tick={{ fill: "var(--muted)", fontSize: 12 }}
                             tickFormatter={(n) =>
                               n >= 1000 ? `${n / 1000} mil` : String(n)
                             }
                           />
                           <Tooltip
                             contentStyle={{
-                              background: "#fffefa",
-                              border: "1px solid #d9e0d6",
+                              background: "var(--panel)",
+                              border: "1px solid var(--border)",
                               borderRadius: 8,
-                              color: "#203e30",
+                              color: "var(--prumo-ink)",
                             }}
                             formatter={(v) =>
                               money(Math.round(Number(v) * 100))
@@ -1039,14 +1041,16 @@ export default function App({
                           <Bar
                             isAnimationActive={false}
                             dataKey="Entradas"
-                            fill="#34765a"
+                            className="cash-income"
+                            fill="var(--chart-income, #34765a)"
                             radius={[3, 3, 0, 0]}
                             maxBarSize={18}
                           />
                           <Bar
                             isAnimationActive={false}
                             dataKey="Saídas"
-                            fill="#b0795d"
+                            className="cash-outgoing"
+                            fill="var(--chart-outgoing, #b0795d)"
                             radius={[3, 3, 0, 0]}
                             maxBarSize={18}
                           />
@@ -1244,8 +1248,11 @@ export default function App({
                     <div className="chart">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={evolution}>
-                          <XAxis dataKey="name" tick={{ fill: "#596e54" }} />
-                          <YAxis tick={{ fill: "#596e54" }} />
+                          <XAxis
+                            dataKey="name"
+                            tick={{ fill: "var(--muted)" }}
+                          />
+                          <YAxis tick={{ fill: "var(--muted)" }} />
                           <Tooltip
                             formatter={(v) =>
                               money(Math.round(Number(v) * 100))
@@ -1254,8 +1261,8 @@ export default function App({
                           <Area
                             isAnimationActive={false}
                             dataKey="Fluxo"
-                            stroke="#2d6a51"
-                            fill="#2d6a51"
+                            stroke="var(--chart-income, #2d6a51)"
+                            fill="var(--chart-income, #2d6a51)"
                             fillOpacity={0.12}
                           />
                         </AreaChart>
