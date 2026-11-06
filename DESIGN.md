@@ -303,6 +303,8 @@ WAAPI revela páginas e diálogos em (240ms); saída de diálogo por ponteiro us
 
 ### Clientes e resumo de gastos
 
+O editor de serviço inclui um fieldset de pagamento com situação, data, forma e histórico de recebimentos. As ações Receber, Editar e Remover ficam na linha do serviço; Receber depende de preço definido e saldo positivo. Pago/Não pago e formas de recebimento aparecem na tabela e na ficha do cliente. Marcar como não pago com valores recebidos exige confirmação de estorno. Remover cliente/serviço confirma que o cadastro sai das listas sem apagar o financeiro e registra a ação no histórico. Superfícies e campos usam os tokens existentes nos dois temas.
+
 A ficha do cliente mantém o painel operacional e acrescenta abas Contato, Endereço e Serviços, com navegação pelas setas, Home e End. Histórico completo em todos os períodos, preço desconhecido preservado e novo serviço previamente vinculado ao cliente. O editor de cliente usa 660px, com endereço opcional e ações fora da área rolável. No celular, dados e serviços se organizam em uma coluna.
 
 A visão geral acrescenta um resumo de gastos por competência abaixo dos indicadores de caixa: total, pagos e a pagar, com discriminação por origem. Tipografia tabular e tokens existentes nos dois temas; valores permanecem estáticos. A nota explica baixas em outro mês e despesas que precisam de conferência.

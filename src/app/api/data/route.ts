@@ -1,6 +1,6 @@
 import { guard, failure } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { allRecords, save, generate } from "@/lib/store";
+import { allRecords, save, generate, archive } from "@/lib/store";
 import { schemas, Kind, entrySchema } from "@/lib/finance";
 import { randomUUID } from "node:crypto";
 export async function GET() {
@@ -21,6 +21,10 @@ export async function POST(req: Request) {
   try {
     await guard(true);
     const b = await req.json();
+    if (b.action === "archive") {
+      if (typeof b.id !== "string" || !b.id) throw Error("Cadastro inválido.");
+      return Response.json(await archive(b.id));
+    }
     if (b.action === "delete")
       return Response.json(
         await db.$transaction(async (tx) => {
@@ -105,7 +109,9 @@ export async function POST(req: Request) {
       );
     }
     if (!(b.kind in schemas)) throw Error("Tipo inválido");
-    return Response.json(await save(b.kind as Kind, b.data, b.id, b.scope));
+    return Response.json(
+      await save(b.kind as Kind, b.data, b.id, b.scope, b.receipt),
+    );
   } catch (e) {
     return failure(e);
   }

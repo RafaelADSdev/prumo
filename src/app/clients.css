@@ -1,6 +1,52 @@
 .editor-dialog[data-kind="client"] {
   width: 660px;
 }
+.service-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.service-actions button {
+  font-size: 12px;
+  min-height: 40px;
+}
+.service-receipt {
+  min-width: 0;
+  margin: 4px 0 24px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+.service-receipt legend {
+  padding-inline: 6px;
+  font-size: 14px;
+  font-weight: 650;
+}
+.service-receipt .field:last-child {
+  margin-bottom: 0;
+}
+.service-receipt-history {
+  font-size: 12px;
+  color: var(--muted);
+}
+.service-receipt-history summary {
+  cursor: pointer;
+  padding-block: 12px;
+}
+.service-receipt-history ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.service-receipt-history li {
+  padding-block: 8px;
+  overflow-wrap: anywhere;
+}
+.service-receipt-history li + li {
+  border-top: 1px solid var(--border);
+}
 .client-actions,
 .client-history-heading {
   display: flex;

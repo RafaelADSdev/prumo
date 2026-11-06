@@ -1,5 +1,13 @@
 import { db } from "./db";
-import { schemas, Kind, entrySchema, paid, recurrenceDate } from "./finance";
+import {
+  schemas,
+  Kind,
+  entrySchema,
+  paid,
+  recurrenceDate,
+  settleService,
+  serviceReceiptSchema,
+} from "./finance";
 import { randomUUID } from "node:crypto";
 export async function allRecords() {
   return (await db.record.findMany({ orderBy: { createdAt: "asc" } })).map(
@@ -11,13 +19,33 @@ export async function save(
   input: unknown,
   id?: string,
   scope = "one",
+  receiptInput?: unknown,
 ) {
   const data = schemas[kind].parse(input);
+  const receipt =
+    receiptInput === undefined
+      ? undefined
+      : serviceReceiptSchema.parse(receiptInput);
+  if (receipt && kind !== "service")
+    throw Error("Recebimento direto disponível somente em serviços.");
   id = id || (kind === "settings" ? "settings" : randomUUID());
   return db.$transaction(async (tx) => {
     const old = await tx.record.findUnique({ where: { id } });
     if (old && old.kind !== kind) throw Error("Tipo de registro inválido");
-    const persist = async (k: string, d: unknown, key: string) => {
+    if (
+      old &&
+      ["client", "service"].includes(kind) &&
+      JSON.parse(old.data).archived
+    )
+      throw Error(
+        "Este cadastro foi removido das listas e não pode ser alterado.",
+      );
+    const persist = async (
+      k: string,
+      d: unknown,
+      key: string,
+      action?: string,
+    ) => {
       const prev = await tx.record.findUnique({ where: { id: key } });
       await tx.record.upsert({
         where: { id: key },
@@ -26,7 +54,7 @@ export async function save(
       });
       await tx.audit.create({
         data: {
-          action: prev ? "edit" : "create",
+          action: action || (prev ? "edit" : "create"),
           entityId: key,
           before: prev?.data,
           after: JSON.stringify(d),
@@ -64,6 +92,13 @@ export async function save(
         const linked = await tx.record.findUnique({ where: { id: linkedId } });
         if (!linked || linked.kind !== expected)
           throw Error("Vínculo inválido: " + field);
+        if (
+          field === "clientId" &&
+          kind === "service" &&
+          JSON.parse(linked.data).archived &&
+          (!old || JSON.parse(old.data).clientId !== linkedId)
+        )
+          throw Error("O cliente foi removido. Selecione um cliente ativo.");
       }
     }
     await persist(kind, data, id!);
@@ -77,8 +112,12 @@ export async function save(
       const amount = s.items.some((i: any) => i.amount === null)
         ? null
         : s.items.reduce((n: number, i: any) => n + i.amount, 0);
-      const e = entrySchema.parse({
+      let e = entrySchema.parse({
         ...prev,
+        payments:
+          receipt?.action === "unpaid"
+            ? (prev.payments || []).map((p: any) => ({ ...p, voided: true }))
+            : prev.payments || [],
         type: "income",
         description: s.description,
         category: "Serviços",
@@ -90,7 +129,17 @@ export async function save(
         cancelled: prev.cancelled || s.status === "Cancelado",
         confirmedZero: amount === 0,
       });
-      await persist("entry", e, "service-" + id);
+      if (receipt) e = settleService(e, receipt, randomUUID());
+      await persist(
+        "entry",
+        e,
+        "service-" + id,
+        receipt
+          ? receipt.action === "unpaid"
+            ? "reverse"
+            : "payment"
+          : undefined,
+      );
     }
     if (kind === "payroll") {
       const p = data as any;
@@ -147,6 +196,27 @@ export async function save(
       }
     }
     return { id };
+  });
+}
+
+export async function archive(id: string) {
+  return db.$transaction(async (tx) => {
+    const record = await tx.record.findUniqueOrThrow({ where: { id } });
+    if (record.kind !== "client" && record.kind !== "service")
+      throw Error("Este cadastro não pode ser removido por esta ação.");
+    const data = JSON.parse(record.data);
+    if (data.archived) return { ok: true };
+    const next = JSON.stringify({ ...data, archived: true });
+    await tx.record.update({ where: { id }, data: { data: next } });
+    await tx.audit.create({
+      data: {
+        action: "archive",
+        entityId: id,
+        before: record.data,
+        after: next,
+      },
+    });
+    return { ok: true };
   });
 }
 export async function generate(year: number, month: number) {

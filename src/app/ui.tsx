@@ -63,6 +63,7 @@ import {
   inPeriod,
   schemas,
   expenseSummary,
+  paid,
 } from "@/lib/finance";
 type Rec = Record<string, any>;
 const months = [
@@ -337,6 +338,10 @@ export default function App({
     (client) => client.id === selectedClientId,
   );
   const expenses = expenseSummary(entries, year, month);
+  const editingServiceEntry =
+    editor?.kind === "service"
+      ? entries.find((entry) => entry.serviceId === editor.id)
+      : undefined;
   const pending = periodEntries.filter(
     (e) => !e.review && balance(e) !== null && (balance(e) || 0) > 0,
   );
@@ -446,6 +451,9 @@ export default function App({
       city: "",
       state: "",
       zipCode: "",
+      paymentAction: "keep",
+      receiptDate: iso(),
+      receiptMethod: "Pix",
       clientId: "",
       date: iso(),
       status: "Em andamento",
@@ -517,9 +525,55 @@ export default function App({
         data.initialDate = data.initialDate || null;
         data.goal = data.goal === "" ? null : parseMoney(data.goal);
       }
-      await api("/api/data", { kind, id: editor.id, data, scope: form.scope });
-      setEditor(null);
-      await refresh();
+      const saveRecord = async () => {
+        await api("/api/data", {
+          kind,
+          id: editor.id,
+          data,
+          scope: form.scope,
+          ...(kind === "service" && form.paymentAction !== "keep"
+            ? {
+                receipt:
+                  form.paymentAction === "unpaid"
+                    ? { action: "unpaid" }
+                    : {
+                        action: "settle",
+                        date: form.receiptDate,
+                        method: form.receiptMethod,
+                      },
+              }
+            : {}),
+        });
+        setEditor(null);
+        await refresh();
+      };
+      if (
+        kind === "service" &&
+        form.paymentAction === "unpaid" &&
+        editingServiceEntry &&
+        paid(editingServiceEntry) > 0
+      ) {
+        setConfirm({
+          title: "Marcar serviço como não pago?",
+          body: "Todos os recebimentos deste serviço serão estornados. O histórico será preservado e os totais financeiros serão atualizados.",
+          action: saveRecord,
+        });
+      } else await saveRecord();
+    });
+  }
+  function requestArchive(kind: "client" | "service", id: string) {
+    setConfirm({
+      title: kind === "client" ? "Remover cliente?" : "Remover serviço?",
+      body:
+        kind === "client"
+          ? "O cliente sairá da lista de cadastros. Seus serviços, recebimentos e histórico financeiro serão preservados."
+          : "O serviço sairá das listas. Valores pagos e a receber continuarão no financeiro. Para desfazer um recebimento, use a opção Não pago antes de remover.",
+      action: async () => {
+        await api("/api/data", { action: "archive", id });
+        setEditor(null);
+        if (kind === "client") setSelectedClientId("");
+        await refresh();
+      },
     });
   }
   function table(rows: Entry[], compact = false) {
@@ -1540,6 +1594,7 @@ export default function App({
                     .filter(
                       (r) =>
                         r.kind === "service" &&
+                        !r.archived &&
                         r.clientId === selectedClient.id,
                     )
                     .map((service) => {
@@ -1551,7 +1606,20 @@ export default function App({
                         description: service.description,
                         date: service.date,
                         status: service.status,
-                        financialStatus: entry ? status(entry) : "A conferir",
+                        financialStatus: entry
+                          ? status(entry) === "Quitado"
+                            ? "Pago"
+                            : status(entry) === "Em aberto"
+                              ? "Não pago"
+                              : status(entry)
+                          : "A conferir",
+                        receiptSummary: entry?.payments
+                          .filter((payment) => !payment.voided)
+                          .map(
+                            (payment) =>
+                              `${money(payment.amount)} · ${payment.method || "Forma não informada"}`,
+                          )
+                          .join(" / "),
                         amount:
                           entry?.amount == null
                             ? null
@@ -1561,6 +1629,7 @@ export default function App({
                     .sort((a, b) => (b.date || "").localeCompare(a.date || ""))}
                   onClose={() => setSelectedClientId("")}
                   onEdit={() => open("client", selectedClient)}
+                  onRemove={() => requestArchive("client", selectedClient.id)}
                   onNewService={() =>
                     open("service", undefined, { clientId: selectedClient.id })
                   }
@@ -1597,6 +1666,7 @@ export default function App({
                             .filter(
                               (r) =>
                                 r.kind === "service" &&
+                                !r.archived &&
                                 inPeriod(r.competence || r.date, year, month),
                             )
                             .map((s) => {
@@ -1616,7 +1686,27 @@ export default function App({
                                   </td>
                                   <td>{br(s.date)}</td>
                                   <td>{s.status}</td>
-                                  <td>{e ? status(e) : "A conferir"}</td>
+                                  <td>
+                                    <span>
+                                      {e
+                                        ? status(e) === "Quitado"
+                                          ? "Pago"
+                                          : status(e) === "Em aberto"
+                                            ? "Não pago"
+                                            : status(e)
+                                        : "A conferir"}
+                                    </span>
+                                    {e &&
+                                      e.payments
+                                        .filter((p) => !p.voided)
+                                        .map((p) => (
+                                          <small key={p.id}>
+                                            {money(p.amount)} ·{" "}
+                                            {p.method || "Forma não informada"}{" "}
+                                            · {br(p.date)}
+                                          </small>
+                                        ))}
+                                  </td>
                                   <td>
                                     {e?.amount === null
                                       ? "Sem preço"
@@ -1625,9 +1715,38 @@ export default function App({
                                         )}
                                   </td>
                                   <td>
-                                    <button onClick={() => open("service", s)}>
-                                      Editar
-                                    </button>
+                                    <div className="service-actions">
+                                      <button
+                                        onClick={() =>
+                                          open("service", s, {
+                                            paymentAction: "settle",
+                                          })
+                                        }
+                                        disabled={
+                                          !e ||
+                                          e.cancelled ||
+                                          e.amount === null ||
+                                          (balance(e) || 0) <= 0
+                                        }
+                                        aria-label={`Receber serviço: ${s.description}`}
+                                      >
+                                        Receber
+                                      </button>
+                                      <button
+                                        onClick={() => open("service", s)}
+                                      >
+                                        Editar
+                                      </button>
+                                      <button
+                                        className="danger"
+                                        onClick={() =>
+                                          requestArchive("service", s.id)
+                                        }
+                                        aria-label={`Remover serviço: ${s.description}`}
+                                      >
+                                        Remover
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -1638,22 +1757,27 @@ export default function App({
                     {!records.some(
                       (r) =>
                         r.kind === "service" &&
+                        !r.archived &&
                         inPeriod(r.competence || r.date, year, month),
                     ) && (
                       <div className="empty">
                         <BriefcaseBusiness size={28} />
                         <h3>Nenhum serviço neste período</h3>
                         <p>
-                          {clients.length
+                          {clients.some((c) => !c.archived)
                             ? "Adicione um serviço e acompanhe os recebimentos na mesma origem."
                             : "Comece cadastrando um cliente para vincular seus serviços."}
                         </p>
                         <button
                           onClick={() =>
-                            open(clients.length ? "service" : "client")
+                            open(
+                              clients.some((c) => !c.archived)
+                                ? "service"
+                                : "client",
+                            )
                           }
                         >
-                          {clients.length
+                          {clients.some((c) => !c.archived)
                             ? "Novo serviço"
                             : "Cadastrar cliente"}
                         </button>
@@ -1664,25 +1788,27 @@ export default function App({
                     <div className="panel-heading">
                       <h2>Clientes</h2>
                     </div>
-                    {clients.map((c) => (
-                      <button
-                        className="summary-row"
-                        key={c.id}
-                        onClick={() => setSelectedClientId(c.id)}
-                        aria-label={`Ver cliente: ${c.name}`}
-                      >
-                        <span>
-                          {c.name}
-                          <small>
-                            {[c.nickname, c.phone || c.contact]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </small>
-                        </span>
-                        <ArrowRight size={16} />
-                      </button>
-                    ))}
-                    {!clients.length && (
+                    {clients
+                      .filter((c) => !c.archived || c.id === form.clientId)
+                      .map((c) => (
+                        <button
+                          className="summary-row"
+                          key={c.id}
+                          onClick={() => setSelectedClientId(c.id)}
+                          aria-label={`Ver cliente: ${c.name}`}
+                        >
+                          <span>
+                            {c.name}
+                            <small>
+                              {[c.nickname, c.phone || c.contact]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </small>
+                          </span>
+                          <ArrowRight size={16} />
+                        </button>
+                      ))}
+                    {!clients.some((c) => !c.archived) && (
                       <div className="empty">
                         <p>
                           Cadastre seu primeiro cliente para vincular um
@@ -2425,6 +2551,7 @@ export default function App({
                             import: "Importação",
                             restore: "Restauração",
                             generate: "Geração mensal",
+                            archive: "Remoção da lista",
                           } as Rec
                         )[a.action] || a.action}
                       </summary>
@@ -2990,11 +3117,13 @@ export default function App({
                         onChange={(e) => set("clientId", e.target.value)}
                       >
                         <option value="">Selecione um cliente</option>
-                        {clients.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
+                        {clients
+                          .filter((c) => !c.archived || c.id === form.clientId)
+                          .map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
                       </select>
                     </Field>
                     <Field label="Situação operacional">
@@ -3037,6 +3166,91 @@ export default function App({
                     </Field>
                   </div>
 
+                  <fieldset className="service-receipt">
+                    <legend>Pagamento do serviço</legend>
+                    {editingServiceEntry && (
+                      <p className="field-hint">
+                        Situação atual:{" "}
+                        {status(editingServiceEntry) === "Quitado"
+                          ? "Pago"
+                          : status(editingServiceEntry) === "Em aberto"
+                            ? "Não pago"
+                            : status(editingServiceEntry)}
+                        . Recebido: {money(paid(editingServiceEntry))}.
+                      </p>
+                    )}
+                    <Field label="Situação do pagamento">
+                      <select
+                        value={form.paymentAction}
+                        onChange={(e) => set("paymentAction", e.target.value)}
+                      >
+                        <option value="keep">
+                          {editingServiceEntry
+                            ? "Manter recebimentos atuais"
+                            : "Não pago"}
+                        </option>
+                        <option value="settle">
+                          Pago — quitar saldo ao salvar
+                        </option>
+                        {editingServiceEntry &&
+                          paid(editingServiceEntry) > 0 && (
+                            <option value="unpaid">
+                              Não pago — estornar recebimentos
+                            </option>
+                          )}
+                      </select>
+                    </Field>
+                    {form.paymentAction === "settle" && (
+                      <div className="form-grid">
+                        <Field label="Data do recebimento">
+                          <input
+                            type="date"
+                            required
+                            value={form.receiptDate}
+                            onChange={(e) => set("receiptDate", e.target.value)}
+                          />
+                        </Field>
+                        <Field label="Forma de recebimento">
+                          <input
+                            required
+                            list="receipt-methods"
+                            value={form.receiptMethod}
+                            onChange={(e) =>
+                              set("receiptMethod", e.target.value)
+                            }
+                          />
+                          <datalist id="receipt-methods">
+                            {[
+                              "Pix",
+                              "Dinheiro",
+                              "Transferência",
+                              "Cartão de crédito",
+                              "Cartão de débito",
+                              "Boleto",
+                            ].map((method) => (
+                              <option value={method} key={method} />
+                            ))}
+                          </datalist>
+                        </Field>
+                      </div>
+                    )}
+                    {editingServiceEntry &&
+                      editingServiceEntry.payments.length > 0 && (
+                        <details className="service-receipt-history">
+                          <summary>Histórico de recebimentos</summary>
+                          <ul>
+                            {editingServiceEntry.payments.map((p) => (
+                              <li key={p.id}>
+                                {money(p.amount)} ·{" "}
+                                {p.method || "Forma não informada"} ·{" "}
+                                {br(p.date)}
+                                {p.voided ? " · Estornado" : ""}
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                  </fieldset>
                   <h3>Itens do serviço</h3>
                   <p className="muted">
                     Informe o total de cada item. Se o preço ainda não estiver
@@ -3052,7 +3266,11 @@ export default function App({
                       ].map(([k, l]) => (
                         <Field key={k} label={l}>
                           <input
-                            required={k === "description"}
+                            required={
+                              k === "description" ||
+                              (k === "amount" &&
+                                form.paymentAction === "settle")
+                            }
                             value={
                               k === "amount" && typeof item[k] === "number"
                                 ? dec(item[k])
@@ -3261,14 +3479,19 @@ export default function App({
               )}
             </div>
             <div className="dialog-footer">
+              {editor?.id && ["client", "service"].includes(editor.kind) && (
+                <button
+                  className="danger"
+                  type="button"
+                  onClick={() => requestArchive(editor.kind, editor.id)}
+                >
+                  Remover {editor.kind === "client" ? "cliente" : "serviço"}
+                </button>
+              )}
               {editor?.id &&
-                [
-                  "client",
-                  "vehicle",
-                  "employee",
-                  "category",
-                  "recurrence",
-                ].includes(editor.kind) && (
+                ["vehicle", "employee", "category", "recurrence"].includes(
+                  editor.kind,
+                ) && (
                   <button
                     className="danger"
                     type="button"

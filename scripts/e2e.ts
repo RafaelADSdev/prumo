@@ -1,4 +1,5 @@
 import { reviewLogin } from "../tests/login-flows";
+import { reviewServiceActions } from "../tests/service-action-flows";
 import { reviewClientsAndExpenses } from "../tests/client-expense-flows";
 import { reviewSupport } from "../tests/settings-support-flows";
 import { reviewTheme } from "../tests/theme-flows";
@@ -344,6 +345,8 @@ try {
   if (process.argv.includes("--review-motion")) await reviewMotion(page, base);
   if (process.argv.includes("--review-clients"))
     await reviewClientsAndExpenses(page, base);
+  if (process.argv.includes("--review-services"))
+    await reviewServiceActions(page, base);
   assert.deepEqual(errors, []);
   await db.record.deleteMany();
   await page.goto(base + "/?page=overview&year=2026&month=all");

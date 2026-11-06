@@ -12,6 +12,7 @@ type Service = {
   date: string | null;
   status: string;
   financialStatus: string;
+  receiptSummary?: string;
   amount: number | null;
 };
 const tabs = ["Contato", "Endereço", "Serviços"] as const;
@@ -23,6 +24,7 @@ export function ClientProfile({
   onEdit,
   onNewService,
   onEditService,
+  onRemove,
 }: {
   client: Client;
   services: Service[];
@@ -30,6 +32,7 @@ export function ClientProfile({
   onEdit: () => void;
   onNewService: () => void;
   onEditService: (id: string) => void;
+  onRemove: () => void;
 }) {
   const [tab, setTab] = useState(0);
   const tablist = useRef<HTMLDivElement>(null);
@@ -47,6 +50,9 @@ export function ClientProfile({
           <button type="button" onClick={onEdit}>
             <Pencil size={16} />
             Editar cliente
+          </button>
+          <button type="button" className="danger" onClick={onRemove}>
+            Remover cliente
           </button>
           <button type="button" onClick={onClose}>
             <ArrowLeft size={16} />
@@ -175,6 +181,9 @@ export function ClientProfile({
                             : "Data não informada"}{" "}
                           · {service.status} · {service.financialStatus}
                         </small>
+                        {service.receiptSummary && (
+                          <small>{service.receiptSummary}</small>
+                        )}
                       </span>
                       <span className="client-service-value">
                         {service.amount === null

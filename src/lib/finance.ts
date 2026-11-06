@@ -76,6 +76,7 @@ export const itemSchema = z.object({
 export const schemas = {
   entry: entrySchema,
   client: z.object({
+    archived: z.boolean().optional(),
     name: text.min(1),
     nickname: text.default(""),
     phone: text.default(""),
@@ -98,6 +99,7 @@ export const schemas = {
   employee: z.object({ name: text.min(1) }),
   category: z.object({ name: text.min(1) }),
   service: z.object({
+    archived: z.boolean().optional(),
     clientId: text,
     description: text.min(1),
     date: date.nullable(),
@@ -143,6 +145,45 @@ export const schemas = {
   }),
 };
 export type Kind = keyof typeof schemas;
+export const serviceReceiptSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("settle"), date, method: text.trim().min(1) }),
+  z.object({ action: z.literal("unpaid") }),
+]);
+export function settleService(
+  entry: z.infer<typeof entrySchema>,
+  input: unknown,
+  paymentId: string,
+) {
+  const receipt = serviceReceiptSchema.parse(input);
+  if (entry.cancelled)
+    throw Error("Não é possível alterar recebimentos de um serviço cancelado.");
+  if (receipt.action === "unpaid")
+    return entrySchema.parse({
+      ...entry,
+      payments: entry.payments.map((payment) => ({ ...payment, voided: true })),
+    });
+  if (entry.amount === null)
+    throw Error(
+      "Defina o preço de todos os itens antes de marcar o serviço como pago.",
+    );
+  const remaining = entry.amount - entry.discount - paid(entry);
+  return entrySchema.parse({
+    ...entry,
+    payments:
+      remaining > 0
+        ? [
+            ...entry.payments,
+            {
+              id: paymentId,
+              amount: remaining,
+              date: receipt.date,
+              method: receipt.method,
+              voided: false,
+            },
+          ]
+        : entry.payments,
+  });
+}
 export function paid(e: { payments: { amount: number; voided?: boolean }[] }) {
   return e.payments.filter((p) => !p.voided).reduce((a, p) => a + p.amount, 0);
 }
