@@ -259,6 +259,53 @@ export function recurrenceDate(year: number, month: number, day: number) {
   return `${year}-${String(month).padStart(2, "0")}-${String(Math.min(day, last)).padStart(2, "0")}`;
 }
 
+function isVehicleExpense(entry: Entry) {
+  return (
+    Boolean(entry.vehicleId) ||
+    ["Combustível", "Manutenção de veículos"].includes(entry.category)
+  );
+}
+
+// Recorded values include entries awaiting review, independently of cash flow.
+export function recordedMonths(entries: Entry[], year: string, month: string) {
+  const months = new Map<
+    string,
+    {
+      month: string;
+      services: number;
+      serviceValue: number;
+      expenses: number;
+      vehicleExpenses: number;
+    }
+  >();
+  for (const entry of entries) {
+    if (entry.cancelled || !inPeriod(entry.competence, year, month)) continue;
+    const service =
+      entry.type === "income" &&
+      (Boolean(entry.serviceId) || entry.category === "Serviços");
+    if (!service && entry.type !== "expense") continue;
+
+    const key = entry.competence.slice(5, 7);
+    const row = months.get(key) ?? {
+      month: key,
+      services: 0,
+      serviceValue: 0,
+      expenses: 0,
+      vehicleExpenses: 0,
+    };
+    const value = entry.amount === null ? 0 : entry.amount - entry.discount;
+    if (service) {
+      if (entry.serviceId) row.services++;
+      row.serviceValue += value;
+    } else {
+      row.expenses += value;
+      if (isVehicleExpense(entry)) row.vehicleExpenses += value;
+    }
+    months.set(key, row);
+  }
+  return [...months.values()].sort((a, b) => a.month.localeCompare(b.month));
+}
+
 // Use a single cohort of expenses so total = paid + outstanding, even when
 // payments happen in another month. Cash totals keep their payment-date basis.
 export function expenseSummary(entries: Entry[], year: string, month: string) {
@@ -288,8 +335,7 @@ export function expenseSummary(entries: Entry[], year: string, month: string) {
     const group =
       entry.recurrenceId || entry.category === "Despesas fixas"
         ? 0
-        : entry.vehicleId ||
-            ["Combustível", "Manutenção de veículos"].includes(entry.category)
+        : isVehicleExpense(entry)
           ? 1
           : entry.employeeId || entry.category === "Colaboradores"
             ? 2

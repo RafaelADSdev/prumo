@@ -74,13 +74,13 @@ try {
       await tx.$executeRaw`CREATE SCHEMA prumo`;
       await tx.$executeRaw`REVOKE ALL ON SCHEMA prumo FROM PUBLIC, anon, authenticated`;
       await tx.$executeRaw`CREATE TABLE prumo."Admin" (id INTEGER PRIMARY KEY DEFAULT 1, email TEXT NOT NULL UNIQUE, hash TEXT NOT NULL)`;
-      await tx.$executeRaw`CREATE TABLE prumo."Session" (id TEXT PRIMARY KEY, expires TIMESTAMP(3) NOT NULL)`;
+      await tx.$executeRaw`CREATE TABLE prumo."WorkspaceSession" (id TEXT PRIMARY KEY, expires TIMESTAMP(3) NOT NULL)`;
       await tx.$executeRaw`CREATE TABLE prumo."Record" (id TEXT PRIMARY KEY, kind TEXT NOT NULL, data TEXT NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL)`;
       await tx.$executeRaw`CREATE TABLE prumo."Audit" (id TEXT PRIMARY KEY, action TEXT NOT NULL, "entityId" TEXT NOT NULL, "before" TEXT, "after" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`;
       await tx.$executeRaw`CREATE TABLE prumo."ImportBatch" (id TEXT PRIMARY KEY, filename TEXT NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`;
       for (const table of [
         "Admin",
-        "Session",
+        "WorkspaceSession",
         "Record",
         "Audit",
         "ImportBatch",

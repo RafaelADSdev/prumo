@@ -1,5 +1,5 @@
-import { db } from "@/lib/db";
-import { hashToken, failure, guard } from "@/lib/auth";
+import { db, workspaceDb } from "@/lib/db";
+import { hashToken, failure, guard, workspaceId } from "@/lib/auth";
 import { compare } from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
@@ -35,9 +35,24 @@ export async function POST(req: Request) {
       email === a.email.toLowerCase() &&
       (await compare(password, a.hash))
     );
-    if (!localAccess && !(await verifySupabaseLogin(email, password)))
-      throw Error("E-mail ou senha incorretos");
-    const token = randomBytes(32).toString("hex");
+    const identity = localAccess
+      ? null
+      : await verifySupabaseLogin(email, password);
+    if (!localAccess && !identity) throw Error("E-mail ou senha incorretos");
+    const primary =
+      localAccess ||
+      identity === process.env.SUPABASE_PRUMO_PRIMARY_USER_ID?.trim();
+    const workspace = primary ? "primary" : workspaceId(identity!);
+    if (!primary) {
+      try {
+        await workspaceDb(workspace).record.findFirst({ select: { id: true } });
+      } catch {
+        throw Error(
+          "O espaço financeiro deste acesso ainda não está disponível.",
+        );
+      }
+    }
+    const token = `v2.${workspace}.${randomBytes(32).toString("hex")}`;
     await db.session.create({
       data: { id: hashToken(token), expires: new Date(Date.now() + 86400000) },
     });

@@ -32,37 +32,37 @@ function session(user = identity) {
 describe("Acesso autorizado do Supabase ao Prumo", () => {
   it("aceita a identidade aprovada e encerra a sessão temporária do provedor", async () => {
     session();
-    expect(await verifySupabaseLogin(email, password)).toBe(true);
+    expect(await verifySupabaseLogin(email, password)).toBe(identity.id);
     expect(String(request.mock.calls[1][0])).toContain(
       "/auth/v1/logout?scope=local",
     );
   });
   it("não concede acesso a outro usuário válido do mesmo Supabase", async () => {
     session({ ...identity, id: "unapproved-user" });
-    expect(await verifySupabaseLogin(email, password)).toBe(false);
+    expect(await verifySupabaseLogin(email, password)).toBeNull();
   });
   it("confere o e-mail retornado pelo provedor", async () => {
     session({ ...identity, email: "someone-else@example.test" });
-    expect(await verifySupabaseLogin(email, password)).toBe(false);
+    expect(await verifySupabaseLogin(email, password)).toBeNull();
   });
   it("rejeita identidade com e-mail não confirmado", async () => {
     session({ ...identity, email_confirmed_at: "" });
-    expect(await verifySupabaseLogin(email, password)).toBe(false);
+    expect(await verifySupabaseLogin(email, password)).toBeNull();
   });
   it("rejeita senha incorreta", async () => {
     request.mockResolvedValue(
       Response.json({ error: "invalid_credentials" }, { status: 400 }),
     );
-    expect(await verifySupabaseLogin(email, "wrong-password")).toBe(false);
+    expect(await verifySupabaseLogin(email, "wrong-password")).toBeNull();
   });
   it("não consulta o provedor para instalações e testes SQLite", async () => {
     vi.stubEnv("DATABASE_URL", "file:./test.db");
-    expect(await verifySupabaseLogin(email, password)).toBe(false);
+    expect(await verifySupabaseLogin(email, password)).toBeNull();
     expect(request).not.toHaveBeenCalled();
   });
   it("nega acesso sem uma lista explícita de usuários aprovados", async () => {
     vi.stubEnv("SUPABASE_PRUMO_USER_IDS", "");
-    expect(await verifySupabaseLogin(email, password)).toBe(false);
+    expect(await verifySupabaseLogin(email, password)).toBeNull();
     expect(request).not.toHaveBeenCalled();
   });
   it("não revela a resposta interna quando o provedor está indisponível", async () => {

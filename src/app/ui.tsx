@@ -62,6 +62,7 @@ import {
   inPeriod,
   schemas,
   expenseSummary,
+  recordedMonths,
   paid,
 } from "@/lib/finance";
 type Rec = Record<string, any>;
@@ -323,6 +324,10 @@ export default function App({
     (client) => client.id === selectedClientId,
   );
   const expenses = expenseSummary(entries, year, month);
+  const recorded = useMemo(
+    () => recordedMonths(entries, year, month),
+    [entries, year, month],
+  );
   const editingServiceEntry =
     editor?.kind === "service"
       ? entries.find((entry) => entry.serviceId === editor.id)
@@ -753,11 +758,7 @@ export default function App({
             onClick={() =>
               void run(async () => {
                 await api("/api/auth", {}, "DELETE");
-                changeView(() => {
-                  setLogged(false);
-                  setRecords([]);
-                  setHasLoaded(false);
-                });
+                window.location.replace("/");
               })
             }
           >
@@ -996,6 +997,49 @@ export default function App({
                   ? "Saldo inicial não informado. Os valores representam a movimentação registrada."
                   : `Saldo inicial de ${money(settings.initialBalance)} em ${br(settings.initialDate)}. Movimentação registrada não confirma saldo bancário.`}
               </div>
+              {recorded.length > 0 && (
+                <section
+                  className="panel"
+                  aria-labelledby="recorded-months-title"
+                >
+                  <div className="panel-heading">
+                    <div>
+                      <h2 id="recorded-months-title">
+                        Serviços e gastos registrados
+                      </h2>
+                      <p>
+                        Valores informados por mês da operação, incluindo
+                        lançamentos a conferir. O total de gastos já inclui os
+                        veículos.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="table-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th scope="col">Mês</th>
+                          <th scope="col">Serviços com cliente</th>
+                          <th scope="col">Valor dos serviços</th>
+                          <th scope="col">Total de gastos</th>
+                          <th scope="col">Gastos com veículos</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recorded.map((row) => (
+                          <tr key={row.month}>
+                            <td>{months[Number(row.month) - 1]}</td>
+                            <td>{row.services}</td>
+                            <td>{money(row.serviceValue)}</td>
+                            <td>{money(row.expenses)}</td>
+                            <td>{money(row.vehicleExpenses)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
               {page === "overview" && (
                 <section
                   className="panel expense-summary"
@@ -1004,7 +1048,7 @@ export default function App({
                   <div className="panel-heading">
                     <div>
                       <h2 id="expense-summary-title">
-                        Todos os gastos do período
+                        Gastos confirmados do período
                       </h2>
                       <p>
                         Pelo mês da despesa · fixas, veículos, colaboradores e
@@ -1451,6 +1495,7 @@ export default function App({
                           <tr>
                             <th>Serviço / cliente</th>
                             <th>Data</th>
+                            <th>Mês de referência</th>
                             <th>Operação</th>
                             <th>Financeiro</th>
                             <th>Valor</th>
@@ -1465,7 +1510,17 @@ export default function App({
                                 !r.archived &&
                                 inPeriod(r.competence || r.date, year, month),
                             )
+                            .sort(
+                              (a, b) =>
+                                (b.competence || b.date || "")
+                                  .slice(0, 7)
+                                  .localeCompare(
+                                    (a.competence || a.date || "").slice(0, 7),
+                                  ) ||
+                                (b.date || "").localeCompare(a.date || ""),
+                            )
                             .map((s) => {
+                              const reference = s.competence || s.date;
                               const e = entries.find(
                                 (e) => e.serviceId === s.id,
                               );
@@ -1481,6 +1536,10 @@ export default function App({
                                     </small>
                                   </td>
                                   <td>{br(s.date)}</td>
+                                  <td>
+                                    {months[Number(reference.slice(5, 7)) - 1]}{" "}
+                                    de {reference.slice(0, 4)}
+                                  </td>
                                   <td>{s.status}</td>
                                   <td>
                                     <span>

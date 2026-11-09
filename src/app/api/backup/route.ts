@@ -1,5 +1,4 @@
 import { guard, failure } from "@/lib/auth";
-import { db } from "@/lib/db";
 import { schemas, Kind } from "@/lib/finance";
 import { z } from "zod";
 const backupSchema = z.object({
@@ -37,7 +36,7 @@ const backupSchema = z.object({
 });
 export async function GET() {
   try {
-    await guard();
+    const db = await guard();
     const backup = await db.$transaction(async (tx) => ({
       format: "nautica-finance-v1",
       records: await tx.record.findMany(),
@@ -57,7 +56,7 @@ export async function GET() {
 }
 export async function POST(req: Request) {
   try {
-    await guard(true);
+    const db = await guard(true);
     if (Number(req.headers.get("content-length") || 0) > 20000000)
       throw Error("Backup maior que 20 MB");
     const body = await req.json();

@@ -1,4 +1,4 @@
-import { db } from "./db";
+import type { PrismaClient } from "@prisma/client";
 import {
   schemas,
   Kind,
@@ -9,12 +9,13 @@ import {
   serviceReceiptSchema,
 } from "./finance";
 import { randomUUID } from "node:crypto";
-export async function allRecords() {
+export async function allRecords(db: PrismaClient) {
   return (await db.record.findMany({ orderBy: { createdAt: "asc" } })).map(
     (r) => ({ id: r.id, kind: r.kind, ...JSON.parse(r.data) }),
   );
 }
 export async function save(
+  db: PrismaClient,
   kind: Kind,
   input: unknown,
   id?: string,
@@ -104,9 +105,14 @@ export async function save(
     await persist(kind, data, id!);
     if (kind === "service") {
       const s = data as any;
-      const linked = await tx.record.findUnique({
-        where: { id: "service-" + id },
-      });
+      const entryId = "service-" + id;
+      const historicalId = /^import-[a-f0-9]{64}-\d+-\d+-service$/.test(id)
+        ? id.replace(/-service$/, "-entry")
+        : null;
+      const linked =
+        (await tx.record.findUnique({ where: { id: entryId } })) ??
+        (historicalId &&
+          (await tx.record.findUnique({ where: { id: historicalId } })));
       const prev = linked ? JSON.parse(linked.data) : {};
       const client = await tx.record.findUnique({ where: { id: s.clientId } });
       const amount = s.items.some((i: any) => i.amount === null)
@@ -133,7 +139,7 @@ export async function save(
       await persist(
         "entry",
         e,
-        "service-" + id,
+        linked ? linked.id : entryId,
         receipt
           ? receipt.action === "unpaid"
             ? "reverse"
@@ -199,7 +205,7 @@ export async function save(
   });
 }
 
-export async function archive(id: string) {
+export async function archive(db: PrismaClient, id: string) {
   return db.$transaction(async (tx) => {
     const record = await tx.record.findUniqueOrThrow({ where: { id } });
     if (record.kind !== "client" && record.kind !== "service")
@@ -219,7 +225,7 @@ export async function archive(id: string) {
     return { ok: true };
   });
 }
-export async function generate(year: number, month: number) {
+export async function generate(db: PrismaClient, year: number, month: number) {
   return db.$transaction(async (tx) => {
     let count = 0;
     for (const row of await tx.record.findMany({

@@ -2,13 +2,11 @@ import { guard, failure } from "@/lib/auth";
 
 import { prepare } from "@/lib/importer";
 
-import { db } from "@/lib/db";
-
 import { entrySchema } from "@/lib/finance";
 
 export async function POST(req: Request) {
   try {
-    await guard(true);
+    const db = await guard(true);
     const form = await req.formData();
     const file = form.get("file");
     if (

@@ -2,14 +2,14 @@ type AuthUser = { id?: string; email?: string; email_confirmed_at?: string };
 
 export async function verifySupabaseLogin(email: string, password: string) {
   // Local installations and isolated tests continue using their local administrator.
-  if (process.env.DATABASE_URL?.startsWith("file:")) return false;
+  if (process.env.DATABASE_URL?.startsWith("file:")) return null;
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_PUBLISHABLE_KEY;
   const allowed = (process.env.SUPABASE_PRUMO_USER_IDS || "")
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean);
-  if (!url || !key || !allowed.length) return false;
+  if (!url || !key || !allowed.length) return null;
 
   let response: Response;
   try {
@@ -31,7 +31,7 @@ export async function verifySupabaseLogin(email: string, password: string) {
     response.status === 401 ||
     response.status === 403
   )
-    return false;
+    return null;
   if (!response.ok)
     throw Error(
       "Não foi possível validar o acesso. Tente novamente em instantes.",
@@ -63,5 +63,5 @@ export async function verifySupabaseLogin(email: string, password: string) {
       /* The provider token is never persisted or sent to the browser. */
     }
   }
-  return authorized;
+  return authorized ? (user?.id ?? null) : null;
 }

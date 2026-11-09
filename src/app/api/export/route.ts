@@ -3,12 +3,12 @@ import { allRecords } from "@/lib/store";
 import { Entry, inPeriod, status, balance } from "@/lib/finance";
 export async function GET(req: Request) {
   try {
-    await guard();
+    const db = await guard();
     const p = new URL(req.url).searchParams;
     const year = p.get("year") || "2026",
       month = p.get("month") || "all",
       basis = p.get("basis") || "cash";
-    const records = (await allRecords()).filter(
+    const records = (await allRecords(db)).filter(
       (r) => r.kind === "entry",
     ) as Entry[];
     const rows = [

@@ -1,13 +1,12 @@
 import { guard, failure } from "@/lib/auth";
-import { db } from "@/lib/db";
 import { allRecords, save, generate, archive } from "@/lib/store";
 import { schemas, Kind, entrySchema } from "@/lib/finance";
 import { randomUUID } from "node:crypto";
 export async function GET() {
   try {
-    await guard();
+    const db = await guard();
     return Response.json({
-      records: await allRecords(),
+      records: await allRecords(db),
       audit: await db.audit.findMany({
         orderBy: { createdAt: "desc" },
         take: 100,
@@ -19,11 +18,11 @@ export async function GET() {
 }
 export async function POST(req: Request) {
   try {
-    await guard(true);
+    const db = await guard(true);
     const b = await req.json();
     if (b.action === "archive") {
       if (typeof b.id !== "string" || !b.id) throw Error("Cadastro inválido.");
-      return Response.json(await archive(b.id));
+      return Response.json(await archive(db, b.id));
     }
     if (b.action === "delete")
       return Response.json(
@@ -65,7 +64,7 @@ export async function POST(req: Request) {
         b.month > 12
       )
         throw Error("Período inválido");
-      return Response.json(await generate(b.year, b.month));
+      return Response.json(await generate(db, b.year, b.month));
     }
     if (["payment", "reverse", "cancel"].includes(b.action)) {
       return Response.json(
@@ -110,7 +109,7 @@ export async function POST(req: Request) {
     }
     if (!(b.kind in schemas)) throw Error("Tipo inválido");
     return Response.json(
-      await save(b.kind as Kind, b.data, b.id, b.scope, b.receipt),
+      await save(db, b.kind as Kind, b.data, b.id, b.scope, b.receipt),
     );
   } catch (e) {
     return failure(e);

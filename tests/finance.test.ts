@@ -9,6 +9,7 @@ import {
   recurrenceDate,
   Entry,
   expenseSummary,
+  recordedMonths,
 } from "../src/lib/finance";
 import { prepare } from "../src/lib/importer";
 import { zipSync, strToU8 } from "fflate";
@@ -26,6 +27,43 @@ const entry = (extra: any = {}) =>
     }),
   }) as Entry;
 describe("regras financeiras", () => {
+  it("organiza serviços e gastos históricos por mês sem lançá-los no caixa", () => {
+    const march = "2026-03-01";
+    const rows = [
+      entry({ serviceId: "a", review: true, amount: null }),
+      entry({ serviceId: "b", review: true, competence: march }),
+      entry({ review: true, competence: march, amount: 3000 }),
+      entry({
+        type: "expense",
+        review: true,
+        category: "Manutenção de veículos",
+        competence: march,
+        amount: 28000,
+      }),
+      entry({ type: "expense", competence: march, amount: 1000 }),
+      entry({ category: "Controle antigo", competence: march }),
+      entry({ type: "expense", cancelled: true, competence: march }),
+    ];
+    const summary = recordedMonths(rows, "2026", "all");
+    expect(summary).toEqual([
+      {
+        month: "03",
+        services: 1,
+        serviceValue: 103000,
+        expenses: 29000,
+        vehicleExpenses: 28000,
+      },
+      {
+        month: "12",
+        services: 1,
+        serviceValue: 0,
+        expenses: 0,
+        vehicleExpenses: 0,
+      },
+    ]);
+    expect(recordedMonths(rows, "2026", "03")).toEqual(summary.slice(0, 1));
+    expect(totals(rows, "2026", "03")).toMatchObject({ income: 0, expense: 0 });
+  });
   it("engloba todas as origens de gastos sem duplicar e separa pagos de pendentes", () => {
     const rows = [
       entry({ type: "expense", amount: 10000, recurrenceId: "fixa" }),
