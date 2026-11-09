@@ -8,6 +8,9 @@
 .calendar-agenda {
   padding: clamp(12px, 2vw, 24px);
 }
+.calendar-agenda {
+  scroll-margin-top: 76px;
+}
 .calendar-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -68,21 +71,118 @@
   margin: 0;
   color: var(--muted);
 }
-.calendar-appointments {
+.calendar-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  background: var(--theme-subtle, #eef2e9);
+  border-radius: 9px;
+}
+.calendar-tabs button {
+  min-height: 38px;
+  padding: 5px 9px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 12px;
+}
+.calendar-tabs button[aria-selected="true"] {
+  border-color: var(--border);
+  color: var(--accent);
+  background: var(--panel);
+  font-weight: 700;
+}
+.calendar-upcoming,
+.calendar-appointments,
+.appointment-items {
   list-style: none;
   margin: 0;
   padding: 0;
 }
-.calendar-appointments li {
+.calendar-upcoming li + li {
+  margin-top: 6px;
+}
+.calendar-upcoming button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 55px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  text-align: left;
+}
+.upcoming-date,
+.upcoming-service {
+  display: grid;
+  overflow-wrap: anywhere;
+}
+.upcoming-date {
+  padding: 5px 2px;
+  border-radius: 6px;
+  text-align: center;
+  background: var(--theme-inset, #e4eee6);
+}
+.upcoming-date strong {
+  color: var(--accent);
+  font-size: 16px;
+  line-height: 1.2;
+}
+.upcoming-date small {
+  font-size: 10px;
+}
+.upcoming-service small {
+  color: var(--muted);
+}
+.calendar-more {
+  margin-top: 12px;
+}
+#agenda-day {
+  margin: 0 0 12px;
+  font-size: 1.25rem;
+}
+.calendar-appointments > li {
   padding-block: 14px;
   border-top: 1px solid var(--border);
 }
 .calendar-appointments h3 {
   margin: 6px 0 0;
 }
-.calendar-appointments p {
+.appointment-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0 0;
+  overflow-wrap: anywhere;
+}
+.appointment-details > div {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+}
+.appointment-details dt {
   color: var(--muted);
-  margin: 4px 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+.appointment-details dd {
+  margin: 3px 0 0;
+}
+.appointment-wide {
+  grid-column: 1 / -1;
+}
+.appointment-items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.appointment-items li span:last-child {
+  flex-shrink: 0;
+}
+.appointment-notes {
+  white-space: pre-wrap;
 }
 .calendar-appointments .service-actions {
   margin-top: 10px;

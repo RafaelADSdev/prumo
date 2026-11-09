@@ -156,7 +156,20 @@ export const schemas = {
     goal: cents.nullable(),
   }),
 };
+export type Client = z.infer<typeof schemas.client> & { id: string };
 export type Service = z.infer<typeof schemas.service> & { id: string };
+export function clientAddress(client?: Client) {
+  if (!client) return "";
+  return [
+    [client.street, client.number].filter(Boolean).join(", "),
+    client.complement,
+    client.neighborhood,
+    [client.city, client.state].filter(Boolean).join(" / "),
+    client.zipCode,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
 export const serviceInputSchema = schemas.service.extend({
   newClientName: text.trim().default(""),
 });

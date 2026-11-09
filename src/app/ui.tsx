@@ -124,6 +124,8 @@ const dec = (v: number | null | undefined) =>
   v == null ? "" : (v / 100).toFixed(2).replace(".", ",");
 const br = (s: string | null) =>
   s ? s.split("-").reverse().join("/") : "Não informada";
+const normalizeClientSearch = (value: string) =>
+  value.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/\p{M}/gu, "");
 async function api(url: string, body?: any, method = "POST") {
   const r = await fetch(
     url,
@@ -171,6 +173,7 @@ export default function App({
 }) {
   const motion = useMotion();
   const [selectedClientId, setSelectedClientId] = useState("");
+  const [clientSearch, setClientSearch] = useState("");
   const [commandOpen, setCommandOpen] = useState(false),
     [hasLoaded, setHasLoaded] = useState(false);
   const [backupFilename, setBackupFilename] = useState("");
@@ -347,6 +350,22 @@ export default function App({
   const selectedClient = clients.find(
     (client) => client.id === selectedClientId,
   );
+  const listedClients = clients.filter(
+    (client) => !client.archived || client.id === form.clientId,
+  );
+  const clientQuery = normalizeClientSearch(clientSearch.trim());
+  const phoneQuery = clientQuery.replace(/[\s()+.-]/g, "");
+  const searchByPhone = /^\d+$/.test(phoneQuery);
+  const matchingClients = clientQuery
+    ? listedClients.filter(
+        (client) =>
+          [client.name, client.nickname, client.phone, client.contact].some(
+            (value) => value && normalizeClientSearch(value).includes(clientQuery),
+          ) ||
+          (searchByPhone &&
+            (client.phone ?? "").replace(/\D/g, "").includes(phoneQuery)),
+      )
+    : listedClients;
   const expenses = expenseSummary(entries, year, month);
   const recorded = useMemo(
     () => recordedMonths(entries, year, month),
@@ -968,11 +987,18 @@ export default function App({
           )}
           {page === "calendar" && (
             <ServiceCalendar
-              key={year + "-" + agendaMonth}
               period={year + "-" + agendaMonth}
               today={iso()}
               services={services}
-              clientNames={new Map(clients.map((c) => [c.id, c.name]))}
+              clients={
+                new Map(
+                  clients.map((client) => [
+                    client.id,
+                    { id: client.id, ...schemas.client.parse(client) },
+                  ]),
+                )
+              }
+              entries={serviceEntries}
               onPeriod={(nextYear, nextMonth) => {
                 setYear(nextYear);
                 setMonth(nextMonth);
@@ -1754,34 +1780,43 @@ export default function App({
                     )}
                   </section>
                   <section className="panel">
-                    <div className="panel-heading">
+                    <div className="panel-heading client-list-heading">
                       <h2>Clientes</h2>
+                      <label className="search">
+                        <Search size={17} aria-hidden="true" />
+                        <input
+                          type="search"
+                          aria-label="Pesquisar clientes"
+                          placeholder="Nome, apelido ou contato"
+                          value={clientSearch}
+                          onChange={(e) => setClientSearch(e.target.value)}
+                        />
+                      </label>
                     </div>
-                    {clients
-                      .filter((c) => !c.archived || c.id === form.clientId)
-                      .map((c) => (
-                        <button
-                          className="summary-row"
-                          key={c.id}
-                          onClick={() => setSelectedClientId(c.id)}
-                          aria-label={`Ver cliente: ${c.name}`}
-                        >
-                          <span>
-                            {c.name}
-                            <small>
-                              {[c.nickname, c.phone || c.contact]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </small>
-                          </span>
-                          <ArrowRight size={16} />
-                        </button>
-                      ))}
-                    {!clients.some((c) => !c.archived) && (
-                      <div className="empty">
+                    {matchingClients.map((c) => (
+                      <button
+                        className="summary-row"
+                        key={c.id}
+                        onClick={() => setSelectedClientId(c.id)}
+                        aria-label={`Ver cliente: ${c.name}`}
+                      >
+                        <span>
+                          {c.name}
+                          <small>
+                            {[c.nickname, c.phone || c.contact]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </small>
+                        </span>
+                        <ArrowRight size={16} />
+                      </button>
+                    ))}
+                    {matchingClients.length === 0 && (
+                      <div className="empty" role="status">
                         <p>
-                          Cadastre seu primeiro cliente para vincular um
-                          serviço.
+                          {listedClients.length
+                            ? "Nenhum cliente encontrado."
+                            : "Cadastre seu primeiro cliente para vincular um serviço."}
                         </p>
                       </div>
                     )}

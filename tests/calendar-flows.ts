@@ -30,6 +30,10 @@ export async function reviewCalendar(page: Page, base: string) {
   await dialog.getByLabel("Quantidade").fill("30");
   await dialog.getByLabel("Unidade", { exact: true }).fill("m");
   await dialog.getByLabel("Total do item (R$)").fill("1200,00");
+  await dialog.getByText("Desconto e observações", { exact: true }).click();
+  await dialog
+    .getByLabel("Observações", { exact: true })
+    .fill("Levar os postes de fixação.");
   await dialog.getByRole("button", { name: "Salvar serviço" }).click();
   await dialog.waitFor({ state: "hidden" });
 
@@ -48,6 +52,29 @@ export async function reviewCalendar(page: Page, base: string) {
   assert.equal(initial.service.date, "2034-11-22");
   assert.equal(initial.service.status, "Agendado");
   assert.equal(initial.entries.length, 0);
+  const upcomingTab = page.getByRole("tab", { name: "Próximos serviços" });
+  const dayPanel = page.getByRole("tabpanel", { name: "Serviços do dia" });
+  await upcomingTab.click();
+  await page.getByLabel("Mês", { exact: true }).selectOption("10");
+  await page
+    .getByRole("tabpanel", { name: "Próximos serviços" })
+    .getByRole("button", { name: new RegExp(description) })
+    .click();
+  assert.equal(
+    await page.getByLabel("Mês", { exact: true }).inputValue(),
+    "11",
+  );
+  await dayPanel
+    .getByRole("heading", { name: "22 de Novembro de 2034" })
+    .waitFor();
+  for (const value of [
+    "Rua da Cerca, 30",
+    "Serviço · 30 m",
+    "Cartão de crédito",
+    "Levar os postes de fixação.",
+  ]) {
+    await dayPanel.getByText(value, { exact: true }).waitFor();
+  }
   await page
     .getByRole("button", { name: "Cancelar serviço", exact: true })
     .click();
@@ -57,6 +84,15 @@ export async function reviewCalendar(page: Page, base: string) {
     .getByText("Cancelado", { exact: true })
     .waitFor();
   assert.equal((await linked()).entries.length, 0);
+  await upcomingTab.click();
+  assert.equal(
+    await page
+      .getByRole("tabpanel", { name: "Próximos serviços" })
+      .getByRole("button", { name: new RegExp(description) })
+      .count(),
+    0,
+  );
+  await upcomingTab.press("ArrowRight");
   await page
     .locator(".calendar-appointments")
     .getByRole("button", { name: "Editar", exact: true })
@@ -146,6 +182,7 @@ export async function reviewCalendar(page: Page, base: string) {
   await page.goto(base + "/?page=calendar&year=2034&month=11");
   await day.click();
   await page.locator(".calendar-appointments").getByText(description).waitFor();
+  await dayPanel.getByText("Pix · 01/12/2034", { exact: true }).waitFor();
   await page.waitForFunction(fitsViewport);
   await page.locator(".service-calendar").screenshot({
     path: ".impeccable/review/agenda-mobile.png",

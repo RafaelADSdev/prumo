@@ -1,37 +1,22 @@
 import { useState } from "react";
 import { Pencil, Search } from "lucide-react";
 import {
+  clientAddress,
   inPeriod,
   money,
   paid,
   serviceAmount,
   serviceStatuses,
   status,
+  type Client,
   type Entry,
   type Service,
-  type schemas,
 } from "@/lib/finance";
 import { periodLabel } from "@/lib/reports";
-import type { z } from "zod";
-
-type Client = z.infer<typeof schemas.client> & { id: string };
 const pageSize = 20;
 const formatDate = (date: string) => date.split("-").reverse().join("/");
 const normalize = (value: string) =>
   value.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/\p{M}/gu, "");
-
-function clientAddress(client?: Client) {
-  if (!client) return "";
-  return [
-    [client.street, client.number].filter(Boolean).join(", "),
-    client.complement,
-    client.neighborhood,
-    [client.city, client.state].filter(Boolean).join(" / "),
-    client.zipCode,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-}
 
 export function ServiceReport({
   services,
