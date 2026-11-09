@@ -73,6 +73,21 @@ export const itemSchema = z.object({
   unit: z.string().max(50),
   amount: cents.nullable(),
 });
+export const serviceStatuses = [
+  "Agendado",
+  "Em andamento",
+  "Concluído",
+  "Cancelado",
+  "A conferir",
+] as const;
+export const paymentMethods = [
+  "Pix",
+  "Dinheiro",
+  "Transferência",
+  "Cartão de crédito",
+  "Cartão de débito",
+  "Boleto",
+];
 export const schemas = {
   entry: entrySchema,
   client: z.object({
@@ -100,17 +115,14 @@ export const schemas = {
   category: z.object({ name: text.min(1) }),
   service: z.object({
     archived: z.boolean().optional(),
+    agenda: z.boolean().optional(),
     clientId: text,
     description: text.min(1),
     date: date.nullable(),
     competence: date,
-    status: z.enum([
-      "Agendado",
-      "Em andamento",
-      "Concluído",
-      "Cancelado",
-      "A conferir",
-    ]),
+    status: z.enum(serviceStatuses),
+    address: text.optional(),
+    method: text.optional(),
     items: z.array(itemSchema).min(1),
     discount: cents.default(0),
     notes: text.default(""),
@@ -144,6 +156,18 @@ export const schemas = {
     goal: cents.nullable(),
   }),
 };
+export type Service = z.infer<typeof schemas.service> & { id: string };
+export const serviceInputSchema = schemas.service.extend({
+  newClientName: text.trim().default(""),
+});
+export function serviceAmount(items: Service["items"]) {
+  let total = 0;
+  for (const item of items) {
+    if (item.amount === null) return null;
+    total += item.amount;
+  }
+  return total;
+}
 export type Kind = keyof typeof schemas;
 export const serviceReceiptSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("settle"), date, method: text.trim().min(1) }),

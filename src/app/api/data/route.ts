@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { guard, failure } from "@/lib/auth";
 import { allRecords, save, generate, archive } from "@/lib/store";
 import { schemas, Kind, entrySchema } from "@/lib/finance";
@@ -66,45 +67,61 @@ export async function POST(req: Request) {
         throw Error("Período inválido");
       return Response.json(await generate(db, b.year, b.month));
     }
-    if (["payment", "reverse", "cancel"].includes(b.action)) {
-      return Response.json(
-        await db.$transaction(async (tx) => {
-          const old = await tx.record.findUniqueOrThrow({
-            where: { id: b.id },
+    if (["payment", "edit-payment", "reverse", "cancel"].includes(b.action)) {
+      const write = async (tx: Prisma.TransactionClient) => {
+        const old = await tx.record.findUniqueOrThrow({
+          where: { id: b.id },
+        });
+        if (old.kind !== "entry") throw Error("Lançamento inválido");
+        const e = JSON.parse(old.data);
+        if (e.cancelled && b.action !== "cancel")
+          throw Error("Lançamento cancelado");
+        if (b.action === "payment")
+          e.payments.push({
+            id: randomUUID(),
+            amount: b.amount,
+            date: b.date,
+            method: b.method,
+            voided: false,
           });
-          if (old.kind !== "entry") throw Error("Lançamento inválido");
-          const e = JSON.parse(old.data);
-          if (e.cancelled && b.action !== "cancel")
-            throw Error("Lançamento cancelado");
-          if (b.action === "payment")
-            e.payments.push({
-              id: randomUUID(),
+        if (b.action === "reverse" || b.action === "edit-payment") {
+          const p = e.payments.find((p: any) => p.id === b.paymentId);
+          if (!p) throw Error("Baixa não encontrada");
+          if (b.action === "reverse") p.voided = true;
+          else {
+            if (p.voided) throw Error("Esta baixa foi estornada.");
+            Object.assign(p, {
               amount: b.amount,
               date: b.date,
               method: b.method,
-              voided: false,
             });
-          if (b.action === "reverse") {
-            const p = e.payments.find((p: any) => p.id === b.paymentId);
-            if (!p) throw Error("Baixa não encontrada");
-            p.voided = true;
           }
-          if (b.action === "cancel") e.cancelled = true;
-          const next = entrySchema.parse(e);
-          await tx.record.update({
-            where: { id: b.id },
-            data: { data: JSON.stringify(next) },
-          });
-          await tx.audit.create({
-            data: {
-              action: b.action,
-              entityId: b.id,
-              before: old.data,
-              after: JSON.stringify(next),
-            },
-          });
-          return { ok: true };
-        }),
+        }
+        if (b.action === "cancel") {
+          const service = e.serviceId
+            ? await tx.record.findUnique({ where: { id: e.serviceId } })
+            : null;
+          if (service && !JSON.parse(service.data).archived)
+            throw Error("Cancele o lançamento no serviço de origem.");
+          e.cancelled = true;
+        }
+        const next = entrySchema.parse(e);
+        await tx.record.update({
+          where: { id: b.id },
+          data: { data: JSON.stringify(next) },
+        });
+        await tx.audit.create({
+          data: {
+            action: b.action,
+            entityId: b.id,
+            before: old.data,
+            after: JSON.stringify(next),
+          },
+        });
+        return { ok: true };
+      };
+      return Response.json(
+        await db.$transaction(write, { isolationLevel: "Serializable" }),
       );
     }
     if (!(b.kind in schemas)) throw Error("Tipo inválido");

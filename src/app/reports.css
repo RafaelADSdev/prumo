@@ -512,3 +512,93 @@ button.report-ranking-row:hover {
     font-size: 11px;
   }
 }
+.report-view-selector button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--theme-inset, #e4eee6);
+  font-weight: 700;
+}
+.report-service-panel {
+  min-width: 0;
+}
+.report-service-panel .panel-heading p,
+.report-service-count {
+  color: var(--muted);
+}
+.report-service-panel .panel-heading p {
+  margin: 4px 0 0;
+}
+.report-service-filters,
+.report-service-count,
+.report-service-pages {
+  padding-inline: clamp(12px, 2vw, 24px);
+}
+.report-service-count {
+  margin-block: 10px;
+}
+.report-service-table {
+  min-width: 890px;
+}
+.report-service-table td {
+  vertical-align: top;
+}
+.report-service-table td:first-child {
+  min-width: 150px;
+}
+.report-service-filters select {
+  max-width: 100%;
+}
+.report-service-filters .search input {
+  min-width: 0;
+}
+.report-service-pages {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-block: 12px;
+  color: var(--muted);
+}
+@media screen and (max-width: 760px) {
+  .service-report-table {
+    display: block;
+    min-width: 0;
+  }
+  .service-report-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .service-report-table tbody {
+    display: block;
+  }
+  .service-report-table tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .service-report-table td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    overflow-wrap: anywhere;
+  }
+  .service-report-table td:first-child,
+  .service-report-table td:last-child {
+    grid-column: 1 / -1;
+  }
+  .service-report-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 3px;
+  }
+}

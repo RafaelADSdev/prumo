@@ -1,0 +1,101 @@
+.service-calendar {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.calendar-month,
+.calendar-agenda {
+  padding: clamp(12px, 2vw, 24px);
+}
+.calendar-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.calendar-toolbar h2 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  font-size: 1.25rem;
+}
+.calendar-toolbar p {
+  margin: 0;
+}
+.calendar-toolbar > div:has(.icon-button) {
+  display: flex;
+  gap: 6px;
+}
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+.calendar-weekday {
+  color: var(--muted);
+  text-align: center;
+  font-size: 0.75rem;
+  padding-bottom: 5px;
+}
+.calendar-day {
+  position: relative;
+  min-height: clamp(44px, 5vw, 66px);
+  min-width: 0;
+  justify-content: center;
+  padding: 3px;
+  gap: 3px;
+}
+.calendar-day small {
+  font-size: 0.65rem;
+  border-radius: 12px;
+  padding: 1px 4px;
+  background: var(--theme-inset, #e4eee6);
+}
+.calendar-day[aria-current="date"] {
+  border-color: var(--accent);
+}
+.calendar-day[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  background: var(--theme-inset, #e4eee6);
+}
+.calendar-empty {
+  padding: 24px 0;
+  margin: 0;
+  color: var(--muted);
+}
+.calendar-appointments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.calendar-appointments li {
+  padding-block: 14px;
+  border-top: 1px solid var(--border);
+}
+.calendar-appointments h3 {
+  margin: 6px 0 0;
+}
+.calendar-appointments p {
+  color: var(--muted);
+  margin: 4px 0;
+}
+.calendar-appointments .service-actions {
+  margin-top: 10px;
+  justify-content: flex-start;
+}
+@media (max-width: 1050px) {
+  .service-calendar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 500px) {
+  .calendar-day {
+    flex-direction: column;
+    gap: 0;
+  }
+}

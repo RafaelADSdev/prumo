@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   schemas,
   Kind,
@@ -6,6 +6,8 @@ import {
   paid,
   recurrenceDate,
   settleService,
+  serviceAmount,
+  serviceInputSchema,
   serviceReceiptSchema,
 } from "./finance";
 import { randomUUID } from "node:crypto";
@@ -22,7 +24,8 @@ export async function save(
   scope = "one",
   receiptInput?: unknown,
 ) {
-  const data = schemas[kind].parse(input);
+  const service = kind === "service" ? serviceInputSchema.parse(input) : null;
+  const data = schemas[kind].parse(service ?? input);
   const receipt =
     receiptInput === undefined
       ? undefined
@@ -30,7 +33,7 @@ export async function save(
   if (receipt && kind !== "service")
     throw Error("Recebimento direto disponível somente em serviços.");
   id = id || (kind === "settings" ? "settings" : randomUUID());
-  return db.$transaction(async (tx) => {
+  const write = async (tx: Prisma.TransactionClient) => {
     const old = await tx.record.findUnique({ where: { id } });
     if (old && old.kind !== kind) throw Error("Tipo de registro inválido");
     if (
@@ -81,6 +84,31 @@ export async function save(
       )
         throw Error("Edite valores e descrição no serviço de origem");
     }
+    const s = service ? schemas.service.parse(service) : null;
+    const oldService =
+      old && s ? schemas.service.parse(JSON.parse(old.data)) : null;
+    if (s) {
+      if (oldService) s.agenda = oldService.agenda;
+      if (s.agenda && !s.date)
+        throw Error("Informe a data do serviço na agenda.");
+      if (s.agenda && s.date) s.competence = s.date.slice(0, 7) + "-01";
+      if (service?.newClientName) {
+        if (s.clientId)
+          throw Error("Selecione um cliente ou cadastre um novo.");
+        s.clientId = "client-service-" + id;
+        const existing = await tx.record.findUnique({
+          where: { id: s.clientId },
+        });
+        if (!existing) {
+          await persist(
+            "client",
+            schemas.client.parse({ name: service.newClientName }),
+            s.clientId,
+          );
+        }
+      }
+      if (s.agenda && !s.clientId) throw Error("Informe o cliente do serviço.");
+    }
     for (const [field, expected] of [
       ["clientId", "client"],
       ["vehicleId", "vehicle"],
@@ -88,9 +116,11 @@ export async function save(
       ["serviceId", "service"],
       ["recurrenceId", "recurrence"],
     ] as const) {
-      const linkedId = (data as any)[field];
+      const linkedId = ((s ?? data) as any)[field];
       if (linkedId) {
-        const linked = await tx.record.findUnique({ where: { id: linkedId } });
+        const linked = await tx.record.findUnique({
+          where: { id: linkedId },
+        });
         if (!linked || linked.kind !== expected)
           throw Error("Vínculo inválido: " + field);
         if (
@@ -102,9 +132,8 @@ export async function save(
           throw Error("O cliente foi removido. Selecione um cliente ativo.");
       }
     }
-    await persist(kind, data, id!);
-    if (kind === "service") {
-      const s = data as any;
+    await persist(kind, s ?? data, id!);
+    if (s) {
       const entryId = "service-" + id;
       const historicalId = /^import-[a-f0-9]{64}-\d+-\d+-service$/.test(id)
         ? id.replace(/-service$/, "-entry")
@@ -113,29 +142,62 @@ export async function save(
         (await tx.record.findUnique({ where: { id: entryId } })) ??
         (historicalId &&
           (await tx.record.findUnique({ where: { id: historicalId } })));
-      const prev = linked ? JSON.parse(linked.data) : {};
-      const client = await tx.record.findUnique({ where: { id: s.clientId } });
-      const amount = s.items.some((i: any) => i.amount === null)
-        ? null
-        : s.items.reduce((n: number, i: any) => n + i.amount, 0);
+      const prev = linked ? entrySchema.parse(JSON.parse(linked.data)) : null;
+      const amount = serviceAmount(s.items);
+      const awaitingConfirmation =
+        s.agenda && s.status !== "Concluído" && s.status !== "Cancelado";
+      const cancelled = s.status === "Cancelado";
+      if (receipt?.action === "settle" && (awaitingConfirmation || cancelled))
+        throw Error("Confirme a execução antes de registrar o recebimento.");
+      if (
+        s.agenda &&
+        (awaitingConfirmation || cancelled) &&
+        prev &&
+        paid(prev) > 0 &&
+        receipt?.action !== "unpaid"
+      )
+        throw Error(
+          "Estorne os recebimentos antes de reabrir ou cancelar o serviço.",
+        );
+      if (!linked && (awaitingConfirmation || (s.agenda && cancelled))) {
+        if (amount !== null && s.discount > amount)
+          throw Error("O desconto ultrapassa o preço do serviço.");
+        return { id };
+      }
+      const client = await tx.record.findUnique({
+        where: { id: s.clientId },
+      });
       let e = entrySchema.parse({
         ...prev,
         payments:
           receipt?.action === "unpaid"
-            ? (prev.payments || []).map((p: any) => ({ ...p, voided: true }))
-            : prev.payments || [],
+            ? (prev?.payments ?? []).map((p) => ({ ...p, voided: true }))
+            : (prev?.payments ?? []),
         type: "income",
         description: s.description,
-        category: "Serviços",
+        category: prev?.category ?? "Serviços",
         amount,
         discount: s.discount,
         competence: s.competence,
-        party: client ? JSON.parse(client.data).name : "",
+        party: client ? JSON.parse(client.data).name : (prev?.party ?? ""),
+        method: s.method ?? prev?.method ?? "",
+        notes: !prev || s.notes !== oldService?.notes ? s.notes : prev.notes,
+        review:
+          s.status !== oldService?.status &&
+          (s.status === "A conferir" || oldService?.status === "A conferir")
+            ? s.status === "A conferir"
+            : !!prev?.review,
         serviceId: id,
-        cancelled: prev.cancelled || s.status === "Cancelado",
+        cancelled:
+          cancelled ||
+          awaitingConfirmation ||
+          (!s.agenda &&
+            oldService?.status !== "Cancelado" &&
+            !!prev?.cancelled),
         confirmedZero: amount === 0,
       });
-      if (receipt) e = settleService(e, receipt, randomUUID());
+      if (receipt?.action === "settle")
+        e = settleService(e, receipt, randomUUID());
       await persist(
         "entry",
         e,
@@ -202,11 +264,12 @@ export async function save(
       }
     }
     return { id };
-  });
+  };
+  return db.$transaction(write, { isolationLevel: "Serializable" });
 }
 
 export async function archive(db: PrismaClient, id: string) {
-  return db.$transaction(async (tx) => {
+  const write = async (tx: Prisma.TransactionClient) => {
     const record = await tx.record.findUniqueOrThrow({ where: { id } });
     if (record.kind !== "client" && record.kind !== "service")
       throw Error("Este cadastro não pode ser removido por esta ação.");
@@ -223,7 +286,8 @@ export async function archive(db: PrismaClient, id: string) {
       },
     });
     return { ok: true };
-  });
+  };
+  return db.$transaction(write, { isolationLevel: "Serializable" });
 }
 export async function generate(db: PrismaClient, year: number, month: number) {
   return db.$transaction(async (tx) => {

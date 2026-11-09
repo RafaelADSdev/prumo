@@ -1,5 +1,6 @@
 import { reviewLogin } from "../tests/login-flows";
 import { reviewReports } from "../tests/report-flows";
+import { reviewCalendar } from "../tests/calendar-flows";
 import { reviewServiceActions } from "../tests/service-action-flows";
 import { reviewClientsAndExpenses } from "../tests/client-expense-flows";
 import { reviewSupport } from "../tests/settings-support-flows";
@@ -350,6 +351,8 @@ try {
     await reviewServiceActions(page, base);
   if (process.argv.includes("--review-reports"))
     await reviewReports(page, base);
+  if (process.argv.includes("--review-calendar"))
+    await reviewCalendar(page, base);
   assert.deepEqual(errors, []);
   await db.record.deleteMany();
   await page.goto(base + "/?page=overview&year=2026&month=all");
