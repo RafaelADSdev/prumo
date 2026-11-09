@@ -1,6 +1,14 @@
 .editor-dialog[data-kind="client"] {
   width: 660px;
 }
+.client-list-heading {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.client-list-heading .search {
+  flex: 0 1 22rem;
+  min-width: 0;
+}
 .service-actions {
   display: flex;
   flex-wrap: wrap;
