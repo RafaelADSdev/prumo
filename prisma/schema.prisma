@@ -34,3 +34,57 @@ model ImportBatch {
  filename String
  createdAt DateTime @default(now())
 }
+
+model AiCredential {
+ provider String @id
+ encryptedKey String
+ updatedAt DateTime @updatedAt
+}
+model AiConversation {
+ id String @id @default(uuid())
+ provider String
+ title String
+ pendingTurn String?
+ pendingUntil DateTime?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ messages AiMessage[]
+ proposals AiProposal[]
+
+ @@index([updatedAt, id])
+}
+model AiMessage {
+ id String @id @default(uuid())
+ conversationId String
+ turnId String
+ role String
+ text String
+ sources String @default("[]")
+ attachment String?
+ createdAt DateTime @default(now())
+ conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+ @@unique([conversationId, turnId, role])
+ @@index([conversationId, createdAt, id])
+}
+model AiProposal {
+ id String @id @default(uuid())
+ conversationId String
+ turnId String
+ filename String
+ fileHash String
+ items String
+ version Int @default(1)
+ status String @default("pending")
+ receipt String?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+ @@unique([conversationId, turnId])
+}
+model AiQuota {
+ id String @id
+ window Int
+ count Int
+}

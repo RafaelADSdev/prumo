@@ -46,6 +46,7 @@ Captura de um ambiente de testes, com registros e valores fictícios. Esses dado
 | **Despesas fixas**      | Mantém recorrências mensais e gera contas previstas sem marcar pagamentos automaticamente.                           |
 | **Veículos**            | Cadastra carros e acompanha combustível, manutenção e outros custos sem duplicar despesas no financeiro.             |
 | **Relatórios**          | Alterna caixa e competência, consulta categorias e origens, exporta CSV e imprime.                                   |
+| **Assistente IA**       | Consulta registros e prepara cadastros a partir de documentos e fotos para você revisar.                             |
 | **Configurações**       | Ajusta organização, anos, meta, categorias, colaboradores, animações, importações e backups.                         |
 
 O seletor de período acompanha a navegação: escolha um mês ou **Ano completo**. Os 12 meses permanecem acessíveis mesmo sem movimento. A configuração inicial inclui 2026 e 2027; outros anos podem ser adicionados sem copiar lançamentos.
@@ -401,6 +402,14 @@ O projeto não inclui uma licença geral de distribuição. As licenças de depe
 
 </div>
 
+
+## Ativar o Assistente IA
+
+1. Configure `PRUMO_AI_ENCRYPTION_KEY` com 32 bytes aleatórios codificados em Base64 no ambiente do servidor. Para gerar o valor, use `node -p "require('node:crypto').randomBytes(32).toString('base64')"`. Guarde-o de forma privada. Uma troca exige reconectar as chaves de API cadastradas.
+2. Em SQLite, execute `npm run setup`. Em PostgreSQL/Supabase, execute `npm run db:generate` e `npm run db:ai` antes de publicar a atualização. O comando prepara as tabelas do espaço principal e dos espaços autorizados existentes. Execute-o também após provisionar um novo espaço financeiro.
+3. Reinicie o Prumo. Em **Configurações → Assistente IA**, conecte uma chave de OpenAI, Gemini, Claude, DeepSeek ou Grok. A chave da conta é inserida na interface do Prumo. Em hospedagem, configure a chave mestra no ambiente do servidor antes da publicação.
+
+O histórico e as chaves ficam em tabelas privadas por espaço, separadas do backup financeiro JSON. O assistente envia a pergunta e os dados consultados necessários ao provedor selecionado. Para anexos, aceita PDF, DOCX, XLSX, CSV e fotos JPG, PNG e WEBP de até 4 MB por mensagem. Os cadastros propostos só entram no Prumo após a confirmação da revisão.
 
 ## Banco Supabase e alternativa local
 

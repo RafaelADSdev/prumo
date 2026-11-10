@@ -69,24 +69,31 @@ export async function POST(req: Request) {
     }
     if (body.confirm !== "RESTAURAR")
       return Response.json({ valid: true, count: b.records.length });
-    await db.$transaction(async (tx) => {
-      await tx.record.deleteMany();
-      await tx.importBatch.deleteMany();
-      await tx.audit.deleteMany();
-      for (const r of b.records) await tx.record.create({ data: r });
-      for (const r of b.batches) await tx.importBatch.create({ data: r });
-      for (const a of b.audit)
-        await tx.audit.create({
-          data: { ...a, createdAt: new Date(a.createdAt) },
+    await db.$transaction(
+      async (tx) => {
+        await tx.record.deleteMany();
+        await tx.importBatch.deleteMany();
+        await tx.audit.deleteMany();
+        await tx.aiProposal.updateMany({
+          where: { status: "pending" },
+          data: { status: "expired" },
         });
-      await tx.audit.create({
-        data: {
-          action: "restore",
-          entityId: "database",
-          after: JSON.stringify({ count: b.records.length }),
-        },
-      });
-    });
+        for (const r of b.records) await tx.record.create({ data: r });
+        for (const r of b.batches) await tx.importBatch.create({ data: r });
+        for (const a of b.audit)
+          await tx.audit.create({
+            data: { ...a, createdAt: new Date(a.createdAt) },
+          });
+        await tx.audit.create({
+          data: {
+            action: "restore",
+            entityId: "database",
+            after: JSON.stringify({ count: b.records.length }),
+          },
+        });
+      },
+      { isolationLevel: "Serializable" },
+    );
     return Response.json({ ok: true });
   } catch (e) {
     return failure(e);

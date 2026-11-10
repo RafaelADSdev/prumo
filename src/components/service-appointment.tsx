@@ -38,6 +38,10 @@ export function ServiceAppointment({
           <dt>Cliente</dt>
           <dd>{client?.name || entry?.party || "Não informado"}</dd>
         </div>
+        <div>
+          <dt>Horário</dt>
+          <dd>{service.appointmentTime || "Não informado"}</dd>
+        </div>
         {(client?.phone || client?.contact) && (
           <div>
             <dt>Contato</dt>

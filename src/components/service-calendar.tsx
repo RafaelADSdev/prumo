@@ -7,6 +7,7 @@ import {
   Plus,
 } from "lucide-react";
 import type { Client, Entry, Service } from "@/lib/finance";
+import { compareAppointments, upcomingAppointments } from "@/lib/appointments";
 import { reportMonths } from "@/lib/reports";
 import { ServiceAppointment } from "./service-appointment";
 
@@ -19,6 +20,7 @@ const upcomingPageSize = 5;
 
 export function ServiceCalendar({
   period,
+  initialDate,
   today,
   services,
   clients,
@@ -28,6 +30,7 @@ export function ServiceCalendar({
   onEdit,
 }: {
   period: string;
+  initialDate?: string;
   today: string;
   services: Service[];
   clients: Map<string, Client>;
@@ -40,8 +43,10 @@ export function ServiceCalendar({
   const month = Number(period.slice(5, 7));
   const days = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const offset = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7;
-  const [tab, setTab] = useState<"upcoming" | "day">("upcoming");
-  const [pickedDate, setPickedDate] = useState("");
+  const [tab, setTab] = useState<"upcoming" | "day">(
+    initialDate ? "day" : "upcoming",
+  );
+  const [pickedDate, setPickedDate] = useState(initialDate ?? "");
   const [visibleCount, setVisibleCount] = useState(upcomingPageSize);
   const tabList = useRef<HTMLDivElement>(null);
   const agendaPanel = useRef<HTMLElement>(null);
@@ -57,20 +62,8 @@ export function ServiceCalendar({
     : today.startsWith(period + "-")
       ? today
       : ([...byDate.keys()].sort()[0] ?? period + "-01");
-  const selected = byDate.get(date) ?? [];
-  const upcoming = services
-    .filter(
-      (service): service is Service & { date: string } =>
-        !service.archived &&
-        service.date !== null &&
-        service.date >= today &&
-        (service.status === "Agendado" || service.status === "Em andamento"),
-    )
-    .sort(
-      (a, b) =>
-        a.date.localeCompare(b.date) ||
-        a.description.localeCompare(b.description, "pt-BR"),
-    );
+  const selected = (byDate.get(date) ?? []).sort(compareAppointments);
+  const upcoming = upcomingAppointments(services, today);
   const heading = reportMonths[month - 1] + " de " + year;
   function showDay(day: string) {
     setPickedDate(day);
@@ -233,6 +226,8 @@ export function ServiceCalendar({
                           entries.get(service.id)?.party ||
                           "Cliente não informado"}{" "}
                         · {service.status}
+                        {service.appointmentTime &&
+                          " · " + service.appointmentTime}
                       </small>
                     </span>
                     <ArrowRight size={16} aria-hidden="true" />

@@ -1,0 +1,518 @@
+.ai-mark {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--theme-subtle, #f0f3eb);
+  color: var(--theme-ink, #1c332b);
+}
+.settings-page .ai-settings {
+  grid-column: 1 / -1;
+  scroll-margin-block: 16px;
+}
+.ai-settings-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.settings-page .ai-settings-heading p {
+  margin: 3px 0 14px;
+}
+.ai-provider-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ai-provider-list > li {
+  padding-block: 10px;
+  border-top: 1px solid var(--theme-line, var(--border));
+}
+.ai-provider-row,
+.ai-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ai-provider-row {
+  column-gap: 12px;
+}
+.ai-provider-name {
+  flex: 1;
+  display: grid;
+  gap: 1px;
+}
+.ai-provider-name small {
+  color: var(--theme-muted, var(--muted));
+}
+.ai-provider-name .ai-connected {
+  color: var(--green);
+}
+.ai-key-form {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0 2px;
+}
+.ai-key-form label {
+  display: grid;
+  gap: 5px;
+  flex: 1 1 240px;
+  max-width: 480px;
+}
+.settings-page .ai-key-form p {
+  margin: 0;
+}
+
+.assistant-content {
+  min-width: 0;
+}
+.ai-shell {
+  position: relative;
+  min-width: 0;
+  height: max(600px, calc(100dvh - 148px));
+  display: flex;
+  flex-direction: column;
+  background: var(--theme-surface, var(--panel));
+  border: 1px solid var(--theme-line, var(--border));
+  border-radius: 16px;
+}
+.ai-toolbar {
+  min-height: 58px;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  border-bottom: 1px solid var(--theme-line, var(--border));
+}
+.ai-toolbar-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+.ai-toolbar-title > svg {
+  flex-shrink: 0;
+  color: var(--theme-muted, var(--muted));
+}
+.ai-toolbar h1 {
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ai-chat-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-left: 11px;
+  margin-left: 3px;
+  border-left: 1px solid var(--theme-line, var(--border));
+  color: var(--theme-muted, var(--muted));
+  font-size: 12px;
+}
+.ai-toolbar button {
+  min-height: 34px;
+  font-size: 12px;
+}
+.ai-compose-wrap {
+  padding: 12px 20px 18px;
+  flex-shrink: 0;
+}
+.ai-shell-empty .ai-compose-wrap {
+  flex: 1;
+  display: grid;
+  align-items: center;
+  padding-block: 32px 54px;
+}
+.ai-compose-inner,
+.ai-thread-inner {
+  width: min(100%, 730px);
+  min-width: 0;
+  margin-inline: auto;
+}
+.ai-welcome {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  margin-bottom: 22px;
+  gap: 8px;
+}
+.ai-welcome-mark {
+  width: 45px;
+  height: 45px;
+  border: 1px solid var(--theme-line, var(--border));
+  margin-bottom: 8px;
+}
+.ai-welcome h2 {
+  font-size: clamp(22px, 2.7vw, 30px);
+  letter-spacing: -0.045em;
+  font-weight: 700;
+}
+.ai-welcome p,
+.ai-privacy,
+.ai-status {
+  color: var(--theme-muted, var(--muted));
+}
+.ai-welcome p {
+  max-width: 410px;
+}
+.ai-composer {
+  border: 1px solid var(--theme-line, var(--border));
+  border-radius: 15px;
+  padding: 10px 11px 9px;
+  display: grid;
+  gap: 5px;
+}
+.ai-composer:focus-within {
+  border-color: var(--theme-focus, #547c5b);
+}
+.ai-composer > textarea {
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  padding: 4px 5px;
+  resize: vertical;
+  min-height: 56px;
+  max-height: 132px;
+  width: 100%;
+  outline: none;
+}
+.ai-composer-actions,
+.ai-history-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ai-composer-actions select,
+.ai-provider-tag {
+  min-height: 34px;
+  padding: 5px 8px;
+  border: 0;
+  font-size: 12px;
+  color: var(--theme-muted, var(--muted));
+}
+.ai-composer-actions .ai-send,
+.ai-composer-actions .ai-attach-button {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+}
+.ai-privacy {
+  font-size: 11px;
+  line-height: 1.5;
+  margin-top: 8px;
+}
+.ai-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 15px;
+}
+.ai-suggestions button {
+  min-height: 33px;
+  background: transparent;
+  border-radius: 100px;
+  font-size: 12px;
+}
+.ai-connect-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 1px solid var(--theme-line, var(--border));
+  background: var(--theme-subtle, #f0f3eb);
+  border-radius: 9px;
+  padding: 9px 11px;
+  margin-bottom: 9px;
+  font-size: 13px;
+}
+.ai-inline-error {
+  color: var(--theme-danger, #a54233);
+  background: var(--theme-danger-bg, var(--theme-subtle, #f0f3eb));
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+.ai-inline-error button {
+  margin-inline-start: 8px;
+}
+.ai-thread {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 26px 20px 12px;
+  scrollbar-gutter: stable;
+}
+.ai-thread-inner {
+  display: grid;
+  gap: 22px;
+}
+.ai-message {
+  width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ai-message-user {
+  justify-self: end;
+  width: fit-content;
+  max-width: 89%;
+  border-radius: 14px 14px 5px 14px;
+  background: var(--theme-subtle, #f0f3eb);
+  padding: 11px 15px;
+}
+.ai-message h2 {
+  font-size: 12px;
+  font-weight: 750;
+  margin-bottom: 5px;
+}
+.ai-message > p {
+  white-space: pre-wrap;
+  line-height: 1.65;
+}
+.ai-working,
+.ai-attachment,
+.ai-review-result > p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ai-working {
+  color: var(--theme-muted, var(--muted));
+}
+.ai-attachment {
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px 8px;
+  background: var(--theme-subtle, #f0f3eb);
+  border: 1px solid var(--theme-line, var(--border));
+  border-radius: 7px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.ai-attachment svg {
+  flex-shrink: 0;
+}
+.ai-selected-file {
+  margin: 0 4px;
+}
+.ai-selected-file .icon-button {
+  min-height: 24px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+.ai-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ai-sources li {
+  max-width: 100%;
+}
+.ai-sources button {
+  min-height: 30px;
+  font-size: 12px;
+  background: transparent;
+  text-align: left;
+}
+.ai-sources svg {
+  flex-shrink: 0;
+}
+.ai-history {
+  position: absolute;
+  z-index: 5;
+  inset: 63px 10px auto auto;
+  width: min(calc(100% - 20px), 340px);
+  max-height: min(65dvh, 510px);
+  overflow: auto;
+  border-radius: 13px;
+  padding: 11px;
+  border: 1px solid var(--theme-line, var(--border));
+  background: var(--theme-surface, var(--panel));
+  box-shadow: 0 12px 24px #101d161a;
+}
+.ai-history ul {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+.ai-history li {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  border-top: 1px solid var(--theme-line, var(--border));
+  padding-block: 3px;
+}
+.ai-history-chat {
+  display: grid;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  justify-content: stretch;
+  text-align: left;
+  border-color: transparent;
+  background: transparent;
+}
+.ai-history-chat strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-history-chat small {
+  color: var(--theme-muted, var(--muted));
+}
+.ai-history-delete {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+.ai-load-older {
+  justify-self: center;
+}
+.ai-review {
+  margin-top: 13px;
+  padding: 13px;
+  border: 1px solid var(--theme-line, var(--border));
+  border-radius: 12px;
+}
+.ai-review-header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+}
+.ai-review-header p,
+.ai-review-instruction,
+.ai-review-item-title small {
+  color: var(--theme-muted, var(--muted));
+  font-size: 12px;
+}
+.ai-review-set,
+.ai-review-lines {
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  border: 0;
+}
+.ai-review-item {
+  padding: 9px 0;
+  margin-top: 8px;
+  border-top: 1px solid var(--theme-line, var(--border));
+}
+.ai-review-item-title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ai-review-item-title span,
+.ai-review-fields label,
+.ai-review-line label {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.ai-review-warnings {
+  font-size: 12px;
+  padding-left: 24px;
+  color: var(--theme-muted, var(--muted));
+}
+.ai-review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 17px;
+  margin: 7px 0 4px 26px;
+  font-size: 12px;
+}
+.ai-review-summary dt {
+  color: var(--theme-muted, var(--muted));
+}
+.ai-review-summary dd {
+  margin: 0;
+  font-weight: 650;
+}
+.ai-review-item summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  width: fit-content;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+.ai-review-item details[open] summary svg {
+  transform: rotate(180deg);
+}
+.ai-review-fields {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  font-size: 12px;
+}
+.ai-review-fields label input:not([type="checkbox"]),
+.ai-review-fields textarea,
+.ai-review-fields select {
+  width: 100%;
+  min-width: 0;
+}
+.ai-review-fields .ai-review-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ai-review-lines {
+  grid-column: 1 / -1;
+}
+.ai-review-lines legend {
+  font-weight: 650;
+  margin-bottom: 6px;
+}
+.ai-review-line {
+  display: grid;
+  grid-template-columns: minmax(100px, 2fr) repeat(3, minmax(48px, 1fr)) auto;
+  align-items: end;
+  gap: 5px;
+  margin-bottom: 7px;
+}
+.ai-review-actions {
+  margin-top: 10px;
+}
+.ai-required {
+  color: var(--orange);
+}
+@media (max-width: 640px) {
+  .ai-shell {
+    height: max(550px, calc(100dvh - 124px));
+  }
+  .ai-toolbar {
+    padding: 9px 11px;
+  }
+  .ai-compose-wrap,
+  .ai-thread {
+    padding-inline: 10px;
+  }
+  .ai-history {
+    inset-block-start: 84px;
+  }
+  .ai-review-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ai-review-line {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

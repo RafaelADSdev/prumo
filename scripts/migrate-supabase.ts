@@ -4,6 +4,7 @@ import { DatabaseSync, backup } from "node:sqlite";
 import { mkdirSync, readFileSync, writeFileSync, copyFileSync } from "node:fs";
 import path from "node:path";
 import assert from "node:assert/strict";
+import { installAiSchema } from "./ai-schema.mjs";
 
 process.loadEnvFile(".env");
 const sourceUrl = process.env.DATABASE_URL || "";
@@ -25,18 +26,46 @@ if (
 const destination = new CloudClient({ datasourceUrl: cloudUrl });
 let snapshot: LocalClient | undefined;
 let live: LocalClient | undefined;
-const models = ["admin", "session", "record", "audit", "importBatch"] as const;
-async function contents(client: any) {
+const models = [
+  "admin",
+  "session",
+  "record",
+  "audit",
+  "importBatch",
+  "aiCredential",
+  "aiConversation",
+  "aiMessage",
+  "aiProposal",
+  "aiQuota",
+] as const;
+async function contents(client: any, local = false) {
   return client.$transaction(
-    async (tx: any) =>
-      Object.fromEntries(
+    async (tx: any) => {
+      const localTables = local
+        ? new Set(
+            (
+              await tx.$queryRaw`SELECT name FROM sqlite_master WHERE type = 'table'`
+            ).map((row: { name: string }) => row.name),
+          )
+        : null;
+      return Object.fromEntries(
         await Promise.all(
           models.map(async (model) => [
             model,
-            await tx[model].findMany({ orderBy: { id: "asc" } }),
+            model.startsWith("ai") &&
+            localTables &&
+            !localTables.has("A" + model.slice(1))
+              ? []
+              : await tx[model].findMany({
+                  orderBy:
+                    model === "aiCredential"
+                      ? { provider: "asc" }
+                      : { id: "asc" },
+                }),
           ]),
         ),
-      ),
+      );
+    },
     { timeout: 60000 },
   );
 }
@@ -68,7 +97,7 @@ try {
     datasourceUrl: `file:${file.replaceAll("\\", "/")}`,
   });
   live = new LocalClient({ datasourceUrl: sourceUrl });
-  const data = await contents(snapshot);
+  const data = await contents(snapshot, true);
   await destination.$transaction(
     async (tx) => {
       await tx.$executeRaw`CREATE SCHEMA prumo`;
@@ -92,6 +121,7 @@ try {
           `REVOKE ALL ON TABLE prumo."${table}" FROM PUBLIC, anon, authenticated`,
         );
       }
+      await installAiSchema(tx, "prumo");
       for (const model of models) {
         // Small batches keep large import histories within pooler query limits.
         for (let offset = 0; offset < data[model].length; offset += 100)
@@ -101,7 +131,10 @@ try {
       }
       for (const model of models)
         assert.deepEqual(
-          await (tx[model] as any).findMany({ orderBy: { id: "asc" } }),
+          await (tx[model] as any).findMany({
+            orderBy:
+              model === "aiCredential" ? { provider: "asc" } : { id: "asc" },
+          }),
           data[model],
           `Divergência na cópia: ${model}`,
         );
@@ -109,7 +142,7 @@ try {
     { timeout: 120000, maxWait: 15000 },
   );
   assert.deepEqual(
-    await contents(live),
+    await contents(live, true),
     data,
     "O banco local mudou durante a migração. Mantenha o banco local ativo e concilie os novos registros antes de ativar o Supabase.",
   );

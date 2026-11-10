@@ -29,4 +29,8 @@ for (const args of [
       },
     },
   );
+if (postgres)
+  execFileSync(process.execPath, ["scripts/migrate-ai.mjs"], {
+    stdio: "inherit",
+  });
 console.log("Banco pronto. Configure o administrador com npm run admin.");

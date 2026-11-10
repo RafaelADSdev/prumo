@@ -49,6 +49,7 @@ export async function reviewCalendar(page: Page, base: string) {
   await dialog
     .getByLabel("Endereço do serviço (opcional)")
     .fill("Rua da Cerca, 30");
+  await dialog.getByLabel("Horário (opcional)", { exact: true }).fill("09:15");
   await dialog
     .getByLabel("Forma prevista de pagamento")
     .fill("Cartão de crédito");
@@ -75,6 +76,7 @@ export async function reviewCalendar(page: Page, base: string) {
   };
   const initial = await linked();
   assert.equal(initial.service.date, "2034-11-22");
+  assert.equal(initial.service.appointmentTime, "09:15");
   assert.equal(initial.service.status, "Agendado");
   assert.equal(initial.service.notes, "Levar os postes de fixação.");
   assert.equal(initial.entries.length, 0);
@@ -101,6 +103,7 @@ export async function reviewCalendar(page: Page, base: string) {
     .waitFor();
   for (const value of [
     "Rua da Cerca, 30",
+    "09:15",
     "Serviço · 30 m",
     "Cartão de crédito",
     "Levar os postes de fixação.",

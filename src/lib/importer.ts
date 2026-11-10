@@ -25,16 +25,24 @@ export type Sheet = {
   rows: Record<number, Record<string, string>>;
   formulas: Set<string>;
 };
-export function readWorkbook(bytes: Uint8Array): Sheet[] {
+export function readWorkbook(
+  bytes: Uint8Array,
+  maxInflatedBytes = 50000000,
+): Sheet[] {
+  let declaredSize = 0;
+  const tooLarge = () =>
+    Error(`Planilha descompactada excede ${maxInflatedBytes / 1_000_000} MB`);
   const files = unzipSync(bytes, {
     filter: (f) => {
       if (f.originalSize > 20000000)
         throw Error("Arquivo interno grande demais");
+      declaredSize += f.originalSize;
+      if (declaredSize > maxInflatedBytes) throw tooLarge();
       return true;
     },
   });
-  if (Object.values(files).reduce((s, f) => s + f.length, 0) > 50000000)
-    throw Error("Planilha descompactada excede 50 MB");
+  if (Object.values(files).reduce((s, f) => s + f.length, 0) > maxInflatedBytes)
+    throw tooLarge();
   const xml = (p: string) => {
     if (!files[p]) throw Error("XLSX inválido: " + p);
     return parser.parse(strFromU8(files[p]));

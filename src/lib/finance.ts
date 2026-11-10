@@ -7,6 +7,9 @@ export const date = z
       !isNaN(Date.parse(s)) && new Date(s).toISOString().slice(0, 10) === s,
     "Data inválida",
   );
+export const appointmentTime = z
+  .string()
+  .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, "Horário inválido. Use HH:mm.");
 const cents = z.number().int().min(0).max(999999999999);
 const text = z.string().max(2000);
 export const paymentSchema = z.object({
@@ -119,6 +122,7 @@ export const schemas = {
     clientId: text,
     description: text.min(1),
     date: date.nullable(),
+    appointmentTime: appointmentTime.nullable().optional(),
     competence: date,
     status: z.enum(serviceStatuses),
     address: text.optional(),

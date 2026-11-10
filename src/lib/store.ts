@@ -17,12 +17,13 @@ export async function allRecords(db: PrismaClient) {
   );
 }
 export async function save(
-  db: PrismaClient,
+  db: PrismaClient | Prisma.TransactionClient,
   kind: Kind,
   input: unknown,
   id?: string,
   scope = "one",
   receiptInput?: unknown,
+  { createOnly = false } = {},
 ) {
   const service = kind === "service" ? serviceInputSchema.parse(input) : null;
   const data = schemas[kind].parse(service ?? input);
@@ -51,6 +52,8 @@ export async function save(
       action?: string,
     ) => {
       const prev = await tx.record.findUnique({ where: { id: key } });
+      if (createOnly && prev)
+        throw Error("Já existe um registro neste destino. Revise o item antes de incluir.");
       await tx.record.upsert({
         where: { id: key },
         create: { id: key, kind: k, data: JSON.stringify(d) },
@@ -91,6 +94,8 @@ export async function save(
       if (oldService) s.agenda = oldService.agenda;
       if (s.agenda && !s.date)
         throw Error("Informe a data do serviço na agenda.");
+      if (s.appointmentTime && !s.date)
+        throw Error("Informe a data para definir o horário do serviço.");
       if (s.agenda && s.date) s.competence = s.date.slice(0, 7) + "-01";
       const newClient = service?.newClient;
       const newClientName = service?.newClientName;
@@ -268,7 +273,9 @@ export async function save(
     }
     return { id };
   };
-  return db.$transaction(write, { isolationLevel: "Serializable" });
+  return "$transaction" in db
+    ? db.$transaction(write, { isolationLevel: "Serializable" })
+    : write(db);
 }
 
 export async function archive(db: PrismaClient, id: string) {

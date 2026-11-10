@@ -1,6 +1,7 @@
 import { reviewLogin } from "../tests/login-flows";
 import { reviewReports } from "../tests/report-flows";
 import { reviewCalendar } from "../tests/calendar-flows";
+import { reviewAssistant } from "../tests/ai-flows";
 import { reviewServiceActions } from "../tests/service-action-flows";
 import { reviewClientsAndExpenses } from "../tests/client-expense-flows";
 import { reviewSupport } from "../tests/settings-support-flows";
@@ -15,25 +16,39 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { spawn, ChildProcess } from "node:child_process";
+import { execFileSync, spawn, ChildProcess } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import { randomBytes } from "node:crypto";
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
 import { entrySchema, totals, balance } from "../src/lib/finance";
 const dir = mkdtempSync(path.join(tmpdir(), "finance-e2e-")),
   file = path.join(dir, "test.db");
-const source = new DatabaseSync("prisma/finance.db", { readOnly: true }),
-  target = new DatabaseSync(file);
-for (const row of source
-  .prepare(
-    "SELECT sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%'",
-  )
-  .all())
-  target.exec(String(row.sql));
-source.close();
-target.close();
-const url = "file:" + file.replaceAll("\\", "/"),
-  db = new PrismaClient({ datasourceUrl: url });
+const url = "file:" + file.replaceAll("\\", "/");
+const ddl = execFileSync(
+  process.execPath,
+  [
+    "node_modules/prisma/build/index.js",
+    "migrate",
+    "diff",
+    "--from-empty",
+    "--to-schema-datamodel",
+    "prisma/schema.prisma",
+    "--script",
+  ],
+  { encoding: "utf8" },
+);
+const sqlite = new DatabaseSync(file);
+try {
+  sqlite.exec(ddl);
+} finally {
+  sqlite.close();
+}
+const db = new PrismaClient({ datasourceUrl: url });
+const assistantReview = process.argv.includes("--review-assistant");
+const fixtureModule = pathToFileURL(
+  path.resolve("tests/ai-provider-fixture.mjs"),
+).href;
 const password = randomBytes(20).toString("hex");
 await db.admin.create({
   data: { id: 1, email: "teste@local.test", hash: await hash(password, 12) },
@@ -52,7 +67,18 @@ async function start() {
       "3101",
     ],
     {
-      env: { ...process.env, DATABASE_URL: url, NEXT_TELEMETRY_DISABLED: "1" },
+      env: {
+        ...process.env,
+        DATABASE_URL: url,
+        NEXT_TELEMETRY_DISABLED: "1",
+        ...(assistantReview && {
+          PRUMO_AI_ENCRYPTION_KEY: randomBytes(32).toString("base64"),
+          PRUMO_E2E_PROVIDER_FIXTURE: "1",
+          NODE_OPTIONS: [process.env.NODE_OPTIONS, "--import=" + fixtureModule]
+            .filter(Boolean)
+            .join(" "),
+        }),
+      },
       stdio: "pipe",
     },
   );
@@ -353,6 +379,7 @@ try {
     await reviewReports(page, base);
   if (process.argv.includes("--review-calendar"))
     await reviewCalendar(page, base);
+  if (assistantReview) await reviewAssistant(page, base);
   assert.deepEqual(errors, []);
   await db.record.deleteMany();
   await page.goto(base + "/?page=overview&year=2026&month=all");

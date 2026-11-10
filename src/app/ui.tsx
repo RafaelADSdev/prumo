@@ -10,6 +10,9 @@ import { useMotion } from "@/hooks/use-motion";
 import { changeView, revealDialog, dismissDialog } from "@/lib/motion";
 import { FilePicker } from "@/components/file-picker";
 import { Brand } from "@/components/brand";
+import { AiSettings } from "@/components/ai-settings";
+import { Assistant } from "@/components/assistant";
+import type { Source } from "@/lib/ai/types";
 import {
   useMemo,
   useEffect,
@@ -96,6 +99,7 @@ const nav = [
   ["fixed", "Despesas fixas", Repeat2],
   ["vehicles", "Veículos", Car],
   ["reports", "Relatórios", ChartNoAxesCombined],
+  ["assistant", "Assistente IA", Sparkles],
   ["settings", "Configurações", Settings],
 ] as const;
 const defaults = {
@@ -276,6 +280,7 @@ export default function App({
 }) {
   const motion = useMotion();
   const [selectedClientId, setSelectedClientId] = useState("");
+  const [agendaFocus, setAgendaFocus] = useState<string>();
   const [clientSearch, setClientSearch] = useState("");
   const [commandOpen, setCommandOpen] = useState(false),
     [hasLoaded, setHasLoaded] = useState(false);
@@ -375,6 +380,7 @@ export default function App({
       setRecords(r.records);
       setAudit(r.audit);
       setHasLoaded(true);
+      return r.records as Rec[];
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -428,7 +434,64 @@ export default function App({
       setVehicle("");
       setSearch("");
       setMenu(false);
+      setAgendaFocus(undefined);
     });
+  function openAiSettings() {
+    go("settings");
+    const settingsPanel = document.getElementById("settings-ai");
+    settingsPanel?.focus({ preventScroll: true });
+    settingsPanel?.scrollIntoView({ block: "start" });
+  }
+  async function openAiSource(source: Source) {
+    if (source.type === "help") {
+      go(source.page);
+      return;
+    }
+    if (source.type === "report") {
+      go("reports");
+      setReportView("financial");
+      setYear(source.year);
+      setMonth(source.month);
+      setBasis(source.basis);
+      void refresh();
+      return;
+    }
+    const match = (item: Rec) => item.id === source.id && item.kind === source.kind;
+    const record = records.find(match) ?? (await refresh())?.find(match);
+    if (!record) {
+      setError("Este registro não está mais disponível no Prumo.");
+      return;
+    }
+    if (source.kind === "client") {
+      go("services");
+      setSelectedClientId(record.id);
+      return;
+    }
+    if (source.kind === "service" && source.visit && record.date) {
+      go("calendar");
+      setYear(record.date.slice(0, 4));
+      setMonth(record.date.slice(5, 7));
+      setAgendaFocus(record.date);
+      return;
+    }
+    if (source.kind === "payroll") {
+      go("entries");
+      const entryId = "payroll-" + record.employeeId + "-" + record.competence.slice(0, 7);
+      const linked = records.find((item) => item.kind === "entry" && item.id === entryId);
+      if (linked) open("entry", linked);
+      return;
+    }
+    const pageForKind = {
+      service: "services",
+      entry: "entries",
+      recurrence: "fixed",
+      vehicle: "vehicles",
+      employee: "settings",
+      category: "settings",
+    };
+    go(pageForKind[source.kind]);
+    open(source.kind, record);
+  }
   useEffect(() => {
     if (!notice) return;
     const t = setTimeout(() => setNotice(""), 6000);
@@ -597,6 +660,7 @@ export default function App({
       clientChoice: "",
       address: "",
       date: iso(),
+      appointmentTime: "",
       status: "Em andamento",
       items: [
         { description: "Serviço", quantity: "1", unit: "un.", amount: null },
@@ -649,6 +713,7 @@ export default function App({
       if (kind === "service") {
         data.competence = data.competence || data.date;
         data.date = data.date || null;
+        data.appointmentTime = data.appointmentTime || null;
         data.items = data.items.map((i: any) => ({
           ...i,
           amount:
@@ -975,68 +1040,70 @@ export default function App({
           </span>
         </header>
         <main
-          className={`page-content${page === "settings" ? " settings-content" : ""}`}
+          className={`page-content${page === "settings" ? " settings-content" : page === "assistant" ? " assistant-content" : ""}`}
           data-loading={loading && !hasLoaded}
           aria-busy={loading}
         >
-          <div className="page-heading">
-            <div>
-              <h1>{nav.find((n) => n[0] === page)?.[1]}</h1>
-              <p>
-                {page === "overview"
-                  ? "Uma visão clara do que entra, do que sai e do que vem pela frente."
-                  : page === "entries"
-                    ? "Compromissos, baixas e histórico em um só lugar."
-                    : (
-                        {
-                          services:
-                            "Cadastre clientes e acompanhe seus serviços e recebimentos.",
-                          calendar:
-                            "Organize os serviços fechados e confirme a execução no dia.",
-                          fixed:
-                            "Organize as contas que se repetem todos os meses.",
-                          vehicles:
-                            "Acompanhe abastecimentos, manutenção e custos por veículo.",
-                          reports:
-                            "Compare caixa e competência e consulte os registros de origem.",
-                          settings:
-                            "Personalize o financeiro e cuide dos seus dados.",
-                        } as Rec
-                      )[page] || "Organize seu financeiro."}
-              </p>
-            </div>
-            <div className="heading-actions">
-              <div className="period">
-                <select
-                  aria-label="Ano"
-                  value={year}
-                  onChange={(e) => setYear(e.target.value)}
-                >
-                  {years.map((y) => (
-                    <option key={y}>{y}</option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Mês"
-                  value={page === "calendar" ? agendaMonth : month}
-                  onChange={(e) => setMonth(e.target.value)}
-                >
-                  {page !== "calendar" && (
-                    <option value="all">Ano completo</option>
-                  )}
-                  {months.map((m, i) => (
-                    <option value={String(i + 1).padStart(2, "0")} key={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+          {page !== "assistant" && (
+            <div className="page-heading">
+              <div>
+                <h1>{nav.find((n) => n[0] === page)?.[1]}</h1>
+                <p>
+                  {page === "overview"
+                    ? "Uma visão clara do que entra, do que sai e do que vem pela frente."
+                    : page === "entries"
+                      ? "Compromissos, baixas e histórico em um só lugar."
+                      : (
+                          {
+                            services:
+                              "Cadastre clientes e acompanhe seus serviços e recebimentos.",
+                            calendar:
+                              "Organize os serviços fechados e confirme a execução no dia.",
+                            fixed:
+                              "Organize as contas que se repetem todos os meses.",
+                            vehicles:
+                              "Acompanhe abastecimentos, manutenção e custos por veículo.",
+                            reports:
+                              "Compare caixa e competência e consulte os registros de origem.",
+                            settings:
+                              "Personalize o financeiro e cuide dos seus dados.",
+                          } as Rec
+                        )[page] || "Organize seu financeiro."}
+                </p>
               </div>
-              <button className="primary" onClick={() => open("entry")}>
-                <Plus size={18} />
-                Novo lançamento
-              </button>
+              <div className="heading-actions">
+                <div className="period">
+                  <select
+                    aria-label="Ano"
+                    value={year}
+                    onChange={(e) => setYear(e.target.value)}
+                  >
+                    {years.map((y) => (
+                      <option key={y}>{y}</option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Mês"
+                    value={page === "calendar" ? agendaMonth : month}
+                    onChange={(e) => setMonth(e.target.value)}
+                  >
+                    {page !== "calendar" && (
+                      <option value="all">Ano completo</option>
+                    )}
+                    {months.map((m, i) => (
+                      <option value={String(i + 1).padStart(2, "0")} key={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button className="primary" onClick={() => open("entry")}>
+                  <Plus size={18} />
+                  Novo lançamento
+                </button>
+              </div>
             </div>
-          </div>
+          )}
           {page === "overview" && !loading && entries.length === 0 && (
             <section className="first-step">
               <span className="first-step-icon">
@@ -1087,8 +1154,27 @@ export default function App({
               <span>Atualizando dados…</span>
             </div>
           )}
+          {page === "assistant" && (
+            <Assistant
+              records={records.map(
+                ({ id, kind, name, description, archived, city }) => ({
+                  id,
+                  kind,
+                  name,
+                  description,
+                  archived,
+                  city,
+                }),
+              )}
+              onSettings={openAiSettings}
+              onSource={openAiSource}
+              onCommitted={() => void refresh()}
+            />
+          )}
           {page === "calendar" && (
             <ServiceCalendar
+              key={agendaFocus ?? "agenda"}
+              initialDate={agendaFocus}
               period={year + "-" + agendaMonth}
               today={iso()}
               services={services}
@@ -2235,6 +2321,7 @@ export default function App({
                     </small>
                   )}
                 </section>
+                <AiSettings />
                 <section className="panel settings-panel support-panel">
                   <h2>Cadastros de apoio</h2>
                   <p>Categorias e colaboradores para classificar despesas.</p>
@@ -2656,6 +2743,7 @@ export default function App({
                             reverse: "Estorno",
                             cancel: "Cancelamento",
                             import: "Importação",
+                            "ai-import": "Inclusão pelo Assistente IA",
                             restore: "Restauração",
                             generate: "Geração mensal",
                             archive: "Remoção da lista",
@@ -3242,7 +3330,24 @@ export default function App({
                         type="date"
                         required={!!form.agenda}
                         value={form.date || ""}
-                        onChange={(e) => set("date", e.target.value)}
+                        onChange={(e) => {
+                          const date = e.target.value;
+                          setForm((current) => ({
+                            ...current,
+                            date,
+                            appointmentTime: date
+                              ? current.appointmentTime
+                              : "",
+                          }));
+                        }}
+                      />
+                    </Field>
+                    <Field label="Horário (opcional)">
+                      <input
+                        type="time"
+                        disabled={!form.date}
+                        value={form.appointmentTime || ""}
+                        onChange={(e) => set("appointmentTime", e.target.value)}
                       />
                     </Field>
                     {!form.agenda && (

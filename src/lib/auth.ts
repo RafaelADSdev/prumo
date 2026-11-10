@@ -26,7 +26,7 @@ async function sessionWorkspace() {
 export async function authenticated() {
   return Boolean(await sessionWorkspace());
 }
-export async function guard(write = false) {
+export async function guardWorkspace(write = false) {
   const workspace = await sessionWorkspace();
   if (!workspace) throw Error("Não autenticado");
   if (write) {
@@ -35,7 +35,10 @@ export async function guard(write = false) {
     if (!origin || new URL(origin).host !== h.get("host"))
       throw Error("Origem inválida");
   }
-  return workspaceDb(workspace);
+  return { db: workspaceDb(workspace), workspace };
+}
+export async function guard(write = false) {
+  return (await guardWorkspace(write)).db;
 }
 export function failure(e: unknown) {
   return Response.json(
