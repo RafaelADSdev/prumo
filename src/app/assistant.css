@@ -140,19 +140,22 @@
   display: grid;
   justify-items: center;
   text-align: center;
-  margin-bottom: 22px;
-  gap: 8px;
+  margin-bottom: 28px;
+  gap: 12px;
 }
 .ai-welcome-mark {
-  width: 45px;
-  height: 45px;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
   border: 1px solid var(--theme-line, var(--border));
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 .ai-welcome h2 {
-  font-size: clamp(22px, 2.7vw, 30px);
-  letter-spacing: -0.045em;
-  font-weight: 700;
+  font-size: 32px;
+  letter-spacing: -0.035em;
+  font-weight: 650;
+  line-height: 1.25;
+  text-wrap: balance;
 }
 .ai-welcome p,
 .ai-privacy,
@@ -160,28 +163,41 @@
   color: var(--theme-muted, var(--muted));
 }
 .ai-welcome p {
-  max-width: 410px;
+  max-width: 430px;
+  line-height: 1.75;
+  text-wrap: pretty;
 }
 .ai-composer {
-  border: 1px solid var(--theme-line, var(--border));
-  border-radius: 15px;
-  padding: 10px 11px 9px;
+  background: var(--theme-surface, #fff);
+  border: 1px solid var(--theme-line, #d7dfd2);
+  border-radius: 20px;
+  padding: 16px 14px 12px;
   display: grid;
-  gap: 5px;
+  gap: 12px;
+  box-shadow:
+    0 3px 8px #193b2b05,
+    0 16px 36px -20px #193b2b24;
+  transition:
+    border-color 180ms var(--prumo-ease),
+    box-shadow 180ms var(--prumo-ease);
 }
 .ai-composer:focus-within {
   border-color: var(--theme-focus, #547c5b);
+  box-shadow:
+    0 3px 8px #193b2b08,
+    0 16px 36px -20px #193b2b33;
 }
 .ai-composer > textarea {
   background: transparent;
   border: 0;
   border-radius: 4px;
-  padding: 4px 5px;
+  padding: 2px 5px;
   resize: vertical;
-  min-height: 56px;
-  max-height: 132px;
+  min-height: 72px;
+  max-height: 180px;
   width: 100%;
   outline: none;
+  line-height: 1.7;
 }
 .ai-composer-actions,
 .ai-history-heading {
@@ -190,38 +206,158 @@
   justify-content: space-between;
   gap: 8px;
 }
-.ai-composer-actions select,
 .ai-provider-tag {
-  min-height: 34px;
-  padding: 5px 8px;
-  border: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 12px;
   font-size: 12px;
   color: var(--theme-muted, var(--muted));
 }
-.ai-composer-actions .ai-send,
-.ai-composer-actions .ai-attach-button {
-  width: 40px;
-  height: 40px;
-  padding: 0;
+.ai-provider-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: var(--theme-ink, #193b2b);
+}
+.ai-provider-dot {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
+  background: var(--green);
+  flex-shrink: 0;
+}
+.ai-provider-picker > .ai-provider-dot {
+  position: absolute;
+  left: 12px;
+  pointer-events: none;
+}
+.ai-provider-picker > svg {
+  position: absolute;
+  right: 11px;
+  pointer-events: none;
+  color: var(--theme-muted, var(--muted));
+}
+.ai-provider-picker select {
+  appearance: none;
+  min-height: 40px;
+  border: 1px solid var(--theme-line, #e2e7dd);
+  border-radius: 11px;
+  padding: 8px 32px 8px 26px;
+  background: var(--theme-subtle, #f4f6f0);
+  color: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  transition: border-color 160ms var(--prumo-ease);
+}
+.ai-provider-picker select:hover:not(:disabled) {
+  border-color: var(--theme-focus, #91a58a);
+}
+.ai-provider-picker:has(select:disabled) {
+  opacity: 0.55;
+}
+.ai-provider-picker:has(select:disabled) > .ai-provider-dot {
+  background: var(--theme-muted, var(--muted));
+}
+@supports (appearance: base-select) {
+  .ai-provider-picker select,
+  .ai-provider-picker select::picker(select) {
+    appearance: base-select;
+  }
+  .ai-provider-picker select::picker-icon {
+    display: none;
+  }
+  .ai-provider-picker select::picker(select) {
+    min-width: 180px;
+    margin-block: 8px;
+    padding: 6px;
+    border: 1px solid var(--theme-line, #dce4d6);
+    border-radius: 14px;
+    background: var(--theme-surface, #fff);
+    color: var(--theme-ink, #193b2b);
+    box-shadow:
+      0 8px 14px #193b2b0a,
+      0 18px 38px -12px #193b2b2b;
+  }
+  .ai-provider-picker option {
+    min-height: 40px;
+    padding: 9px 11px;
+    border-radius: 8px;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .ai-provider-picker option:hover,
+  .ai-provider-picker option:focus,
+  .ai-provider-picker option:checked {
+    background: var(--theme-subtle, #edf3e7);
+    color: var(--theme-ink, #193b2b);
+  }
+  .ai-provider-picker option::checkmark {
+    color: var(--green);
+  }
+}
+.ai-composer-actions .ai-send {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 14px;
+}
+.ai-composer-actions .ai-attach-button {
+  height: 40px;
+  width: auto;
+  padding: 8px 10px;
+  gap: 7px;
+  border-color: transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--theme-muted, var(--muted));
+  font-size: 12px;
+}
+.ai-composer-actions .ai-attach-button:hover:not(:disabled) {
+  background: var(--theme-subtle, #f0f3eb);
+  color: var(--theme-ink, #193b2b);
 }
 .ai-privacy {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 6px;
   font-size: 11px;
-  line-height: 1.5;
-  margin-top: 8px;
+  line-height: 1.6;
+  margin-top: 12px;
+}
+.ai-privacy svg {
+  margin-top: 2px;
 }
 .ai-suggestions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 7px;
-  margin-top: 15px;
+  gap: 10px;
+  margin-top: 26px;
 }
 .ai-suggestions button {
-  min-height: 33px;
+  min-height: 46px;
+  padding: 11px 14px;
+  gap: 10px;
   background: transparent;
-  border-radius: 100px;
+  border-color: var(--theme-line, #e0e5da);
+  border-radius: 12px;
   font-size: 12px;
+  text-align: left;
+}
+.ai-suggestions button > svg:first-child {
+  color: var(--theme-muted, #596e54);
+}
+.ai-suggestions button > svg:last-child {
+  margin-left: 3px;
+  color: var(--theme-muted, #596e54);
+}
+.ai-suggestions button:hover:not(:disabled) {
+  background: var(--theme-subtle, #f0f3eb);
+  border-color: var(--theme-focus, #a9b9a0);
 }
 .ai-connect-prompt {
   display: flex;
@@ -505,6 +641,34 @@
   .ai-compose-wrap,
   .ai-thread {
     padding-inline: 10px;
+  }
+  .ai-shell-empty .ai-compose-wrap {
+    padding-block: 28px 36px;
+  }
+  .ai-welcome h2 {
+    font-size: 26px;
+  }
+  .ai-welcome p {
+    font-size: 13px;
+    max-width: 32ch;
+  }
+  .ai-composer {
+    border-radius: 16px;
+    padding: 12px 9px 9px;
+  }
+  .ai-composer > textarea {
+    font-size: 16px;
+  }
+  .ai-composer-actions .ai-attach-button {
+    padding-inline: 7px;
+  }
+  .ai-suggestions {
+    display: grid;
+    gap: 8px;
+    margin-top: 20px;
+  }
+  .ai-suggestions button > span {
+    flex: 1;
   }
   .ai-history {
     inset-block-start: 84px;

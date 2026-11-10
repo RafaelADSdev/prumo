@@ -3,14 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowUp,
+  ArrowUpRight,
+  CalendarDays,
+  ChevronDown,
   FileText,
   History,
+  Info,
   LoaderCircle,
   Paperclip,
   Plus,
   Settings,
   Sparkles,
   Trash2,
+  Wallet,
   X,
 } from "lucide-react";
 import { aiRequest, jsonRequest } from "@/lib/ai/client";
@@ -43,8 +48,8 @@ type Turn = {
 };
 
 const suggestions = [
-  "Qual é a próxima visita da Agenda?",
-  "Quanto recebi este mês?",
+  { text: "Qual é a próxima visita da Agenda?", icon: CalendarDays },
+  { text: "Quanto recebi este mês?", icon: Wallet },
 ];
 
 export function Assistant({
@@ -582,29 +587,35 @@ export function Assistant({
                 onClick={() => attachmentInput.current?.click()}
                 disabled={!canSend || Boolean(busy)}
               >
-                <Paperclip size={19} />
+                <Paperclip size={18} aria-hidden="true" />
+                <span>Anexar</span>
               </button>
               <div className="ai-row-actions">
                 {chat ? (
                   <span className="ai-provider-tag">
+                    <span className="ai-provider-dot" aria-hidden="true" />
                     {providers[chat.provider].label}
                   </span>
                 ) : (
-                  <select
-                    aria-label="Provedor da conversa"
-                    disabled={Boolean(busy) || !connected.length}
-                    value={provider}
-                    onChange={(event) =>
-                      setProvider(event.target.value as ProviderId)
-                    }
-                  >
-                    {!connected.length && <option value="">Provedor</option>}
-                    {connected.map(({ id }) => (
-                      <option key={id} value={id}>
-                        {providers[id].label}
-                      </option>
-                    ))}
-                  </select>
+                  <span className="ai-provider-picker">
+                    <span className="ai-provider-dot" aria-hidden="true" />
+                    <select
+                      aria-label="Provedor da conversa"
+                      disabled={Boolean(busy) || !connected.length}
+                      value={provider}
+                      onChange={(event) =>
+                        setProvider(event.target.value as ProviderId)
+                      }
+                    >
+                      {!connected.length && <option value="">Provedor</option>}
+                      {connected.map(({ id }) => (
+                        <option key={id} value={id}>
+                          {providers[id].label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown size={14} aria-hidden="true" />
+                  </span>
                 )}
                 <button
                   className="primary ai-send"
@@ -622,23 +633,28 @@ export function Assistant({
             </div>
           </form>
           <p className="ai-privacy">
-            A pergunta e os trechos usados na resposta são enviados ao provedor
-            selecionado.
+            <Info size={13} aria-hidden="true" />
+            <span>
+              A pergunta e os trechos usados na resposta são enviados ao
+              provedor selecionado.
+            </span>
           </p>
           {blank && canSend && (
             <div className="ai-suggestions" aria-label="Sugestões de pergunta">
-              {suggestions.map((item) => (
+              {suggestions.map(({ text: suggestion, icon: Icon }) => (
                 <button
                   type="button"
-                  key={item}
+                  key={suggestion}
                   disabled={Boolean(busy)}
                   onClick={() => {
-                    setText(item);
+                    setText(suggestion);
                     turnId.current = "";
                     composer.current?.focus();
                   }}
                 >
-                  {item}
+                  <Icon size={17} aria-hidden="true" />
+                  <span>{suggestion}</span>
+                  <ArrowUpRight size={15} aria-hidden="true" />
                 </button>
               ))}
             </div>
