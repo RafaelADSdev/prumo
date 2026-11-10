@@ -70,6 +70,7 @@ import {
   paymentMethods,
   serviceAmount,
   serviceStatuses,
+  type Client,
   type Service,
 } from "@/lib/finance";
 type Rec = Record<string, any>;
@@ -160,6 +161,108 @@ function Field({
           })
         : children}
     </label>
+  );
+}
+type ClientForm = Omit<Client, "id" | "archived">;
+function ClientFields({
+  client,
+  onChange,
+  nameLabel = "Nome / identificação",
+  autoFocus,
+}: {
+  client: Partial<ClientForm>;
+  onChange: (key: keyof ClientForm, value: string) => void;
+  nameLabel?: string;
+  autoFocus?: boolean;
+}) {
+  return (
+    <>
+      <Field label={nameLabel}>
+        <input
+          autoFocus={autoFocus}
+          required
+          value={client.name ?? ""}
+          onChange={(e) => onChange("name", e.target.value)}
+        />
+      </Field>
+      <Field label="Apelido (opcional)">
+        <input
+          value={client.nickname ?? ""}
+          onChange={(e) => onChange("nickname", e.target.value)}
+        />
+      </Field>
+      <Field label="Telefone (opcional)">
+        <input
+          type="tel"
+          autoComplete="tel"
+          value={client.phone ?? ""}
+          onChange={(e) => onChange("phone", e.target.value)}
+        />
+      </Field>
+      <Field label="Contato (opcional)">
+        <input
+          value={client.contact ?? ""}
+          onChange={(e) => onChange("contact", e.target.value)}
+        />
+      </Field>
+      <details className="form-details" open>
+        <summary>Endereço (opcional)</summary>
+        <Field label="Rua / logradouro">
+          <input
+            autoComplete="street-address"
+            value={client.street ?? ""}
+            onChange={(e) => onChange("street", e.target.value)}
+          />
+        </Field>
+        <div className="form-grid">
+          <Field label="Número">
+            <input
+              value={client.number ?? ""}
+              onChange={(e) => onChange("number", e.target.value)}
+            />
+          </Field>
+          <Field label="Complemento">
+            <input
+              value={client.complement ?? ""}
+              onChange={(e) => onChange("complement", e.target.value)}
+            />
+          </Field>
+          <Field label="Bairro">
+            <input
+              value={client.neighborhood ?? ""}
+              onChange={(e) => onChange("neighborhood", e.target.value)}
+            />
+          </Field>
+          <Field label="Cidade">
+            <input
+              autoComplete="address-level2"
+              value={client.city ?? ""}
+              onChange={(e) => onChange("city", e.target.value)}
+            />
+          </Field>
+          <Field label="Estado / UF">
+            <input
+              autoComplete="address-level1"
+              value={client.state ?? ""}
+              onChange={(e) => onChange("state", e.target.value)}
+            />
+          </Field>
+          <Field label="CEP">
+            <input
+              autoComplete="postal-code"
+              value={client.zipCode ?? ""}
+              onChange={(e) => onChange("zipCode", e.target.value)}
+            />
+          </Field>
+        </div>
+      </details>
+      <Field label="Descrição / observações (opcional)">
+        <textarea
+          value={client.notes ?? ""}
+          onChange={(e) => onChange("notes", e.target.value)}
+        />
+      </Field>
+    </>
   );
 }
 export default function App({
@@ -492,7 +595,6 @@ export default function App({
       receiptMethod: plannedMethod || "Pix",
       clientId: "",
       clientChoice: "",
-      newClientName: "",
       address: "",
       date: iso(),
       status: "Em andamento",
@@ -2739,10 +2841,11 @@ export default function App({
         ) : (
           <form onSubmit={submit} className="editor-form">
             <div className="form-content">
+              {editor?.kind === "client" && (
+                <ClientFields client={form} onChange={set} autoFocus />
+              )}
               {editor &&
-                ["client", "vehicle", "employee", "category"].includes(
-                  editor.kind,
-                ) && (
+                ["vehicle", "employee", "category"].includes(editor.kind) && (
                   <>
                     <Field label="Nome / identificação">
                       <input
@@ -2752,91 +2855,6 @@ export default function App({
                         onChange={(e) => set("name", e.target.value)}
                       />
                     </Field>
-                    {editor.kind === "client" && (
-                      <>
-                        <Field label="Apelido (opcional)">
-                          <input
-                            value={form.nickname}
-                            onChange={(e) => set("nickname", e.target.value)}
-                          />
-                        </Field>
-                        <Field label="Telefone (opcional)">
-                          <input
-                            type="tel"
-                            autoComplete="tel"
-                            value={form.phone}
-                            onChange={(e) => set("phone", e.target.value)}
-                          />
-                        </Field>
-                        <Field label="Contato (opcional)">
-                          <input
-                            value={form.contact}
-                            onChange={(e) => set("contact", e.target.value)}
-                          />
-                        </Field>
-                        <details className="form-details" open>
-                          <summary>Endereço (opcional)</summary>
-                          <Field label="Rua / logradouro">
-                            <input
-                              autoComplete="street-address"
-                              value={form.street}
-                              onChange={(e) => set("street", e.target.value)}
-                            />
-                          </Field>
-                          <div className="form-grid">
-                            <Field label="Número">
-                              <input
-                                value={form.number}
-                                onChange={(e) => set("number", e.target.value)}
-                              />
-                            </Field>
-                            <Field label="Complemento">
-                              <input
-                                value={form.complement}
-                                onChange={(e) =>
-                                  set("complement", e.target.value)
-                                }
-                              />
-                            </Field>
-                            <Field label="Bairro">
-                              <input
-                                value={form.neighborhood}
-                                onChange={(e) =>
-                                  set("neighborhood", e.target.value)
-                                }
-                              />
-                            </Field>
-                            <Field label="Cidade">
-                              <input
-                                autoComplete="address-level2"
-                                value={form.city}
-                                onChange={(e) => set("city", e.target.value)}
-                              />
-                            </Field>
-                            <Field label="Estado / UF">
-                              <input
-                                autoComplete="address-level1"
-                                value={form.state}
-                                onChange={(e) => set("state", e.target.value)}
-                              />
-                            </Field>
-                            <Field label="CEP">
-                              <input
-                                autoComplete="postal-code"
-                                value={form.zipCode}
-                                onChange={(e) => set("zipCode", e.target.value)}
-                              />
-                            </Field>
-                          </div>
-                        </details>
-                        <Field label="Descrição / observações (opcional)">
-                          <textarea
-                            value={form.notes}
-                            onChange={(e) => set("notes", e.target.value)}
-                          />
-                        </Field>
-                      </>
-                    )}
                     {editor.kind === "vehicle" && (
                       <div className="form-grid">
                         <Field label="Modelo (opcional)">
@@ -3154,11 +3172,15 @@ export default function App({
                         value={form.clientChoice || form.clientId}
                         onChange={(e) => {
                           const value = e.target.value;
+                          const newClient =
+                            value === "new"
+                              ? { name: "", creationId: crypto.randomUUID() }
+                              : undefined;
                           setForm((f) => ({
                             ...f,
                             clientChoice: value === "new" ? "new" : "",
                             clientId: value === "new" ? "" : value,
-                            newClientName: "",
+                            newClient,
                           }));
                         }}
                       >
@@ -3197,13 +3219,16 @@ export default function App({
                     </Field>
                   </div>
                   {form.clientChoice === "new" && (
-                    <Field label="Nome do novo cliente">
-                      <input
-                        required
-                        value={form.newClientName}
-                        onChange={(e) => set("newClientName", e.target.value)}
-                      />
-                    </Field>
+                    <ClientFields
+                      client={form.newClient}
+                      nameLabel="Nome do novo cliente"
+                      onChange={(key, value) =>
+                        setForm((f) => ({
+                          ...f,
+                          newClient: { ...f.newClient, [key]: value },
+                        }))
+                      }
+                    />
                   )}
                   <div className="form-grid">
                     <Field

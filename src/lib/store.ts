@@ -92,17 +92,20 @@ export async function save(
       if (s.agenda && !s.date)
         throw Error("Informe a data do serviço na agenda.");
       if (s.agenda && s.date) s.competence = s.date.slice(0, 7) + "-01";
-      if (service?.newClientName) {
+      const newClient = service?.newClient;
+      const newClientName = service?.newClientName;
+      if (newClient || newClientName) {
         if (s.clientId)
           throw Error("Selecione um cliente ou cadastre um novo.");
         s.clientId = "client-service-" + id;
+        if (newClient) s.clientId += "-" + newClient.creationId;
         const existing = await tx.record.findUnique({
           where: { id: s.clientId },
         });
         if (!existing) {
           await persist(
             "client",
-            schemas.client.parse({ name: service.newClientName }),
+            schemas.client.parse(newClient ?? { name: newClientName }),
             s.clientId,
           );
         }

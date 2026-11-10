@@ -1,13 +1,23 @@
 import assert from "node:assert/strict";
 import type { Page } from "playwright";
-import { money, totals, type Entry, type Service } from "../src/lib/finance";
+import {
+  money,
+  totals,
+  type Client,
+  type Entry,
+  type Service,
+} from "../src/lib/finance";
 
 export async function reviewCalendar(page: Page, base: string) {
   const description = "Instalação de cerca para a agenda";
   const records = async () => {
     const response = await page.request.get(base + "/api/data");
     assert.ok(response.ok());
-    return (await response.json()).records as (Entry & { kind: string })[];
+    return (await response.json()).records as (
+      | (Entry & { kind: "entry" })
+      | (Client & { kind: "client" })
+      | (Service & { kind: "service" })
+    )[];
   };
   await page.setViewportSize({ width: 1440, height: 950 });
   await page.goto(base + "/?page=calendar&year=2034&month=11");
@@ -16,7 +26,22 @@ export async function reviewCalendar(page: Page, base: string) {
   await day.click();
   await page.getByRole("button", { name: "Agendar serviço" }).click();
   await dialog.getByLabel("Cliente", { exact: true }).selectOption("new");
-  await dialog.getByLabel("Nome do novo cliente").fill("Cliente da cerca");
+  const clientFields = [
+    ["name", "Nome do novo cliente", "Cliente da cerca"],
+    ["nickname", "Apelido (opcional)", "Dona Ana"],
+    ["phone", "Telefone (opcional)", "(11) 99999-0000"],
+    ["contact", "Contato (opcional)", "ana@exemplo.com"],
+    ["street", "Rua / logradouro", "Rua das Flores"],
+    ["number", "Número", "123"],
+    ["complement", "Complemento", "Casa 2"],
+    ["neighborhood", "Bairro", "Centro"],
+    ["city", "Cidade", "São Paulo"],
+    ["state", "Estado / UF", "SP"],
+    ["zipCode", "CEP", "01000-000"],
+    ["notes", "Descrição / observações (opcional)", "Ligar antes da visita."],
+  ] as const;
+  for (const [, label, value] of clientFields)
+    await dialog.getByLabel(label, { exact: true }).fill(value);
   await dialog
     .getByLabel("Descrição", { exact: true })
     .first()
@@ -39,19 +64,26 @@ export async function reviewCalendar(page: Page, base: string) {
 
   const linked = async () => {
     const data = await records();
-    const service = data.find(
-      (r) => r.kind === "service" && r.description === description,
-    ) as unknown as Service;
+    const service = data
+      .filter((r) => r.kind === "service")
+      .find((r) => r.description === description);
     assert.ok(service);
-    const entries = data.filter(
-      (r) => r.kind === "entry" && r.serviceId === service.id,
-    );
+    const entries = data
+      .filter((r) => r.kind === "entry")
+      .filter((r) => r.serviceId === service.id);
     return { service, entries };
   };
   const initial = await linked();
   assert.equal(initial.service.date, "2034-11-22");
   assert.equal(initial.service.status, "Agendado");
+  assert.equal(initial.service.notes, "Levar os postes de fixação.");
   assert.equal(initial.entries.length, 0);
+  const client = (await records())
+    .filter((r) => r.kind === "client")
+    .find((r) => r.id === initial.service.clientId);
+  assert.ok(client);
+  for (const [key, , value] of clientFields)
+    assert.equal(client[key], value, key);
   const upcomingTab = page.getByRole("tab", { name: "Próximos serviços" });
   const dayPanel = page.getByRole("tabpanel", { name: "Serviços do dia" });
   await upcomingTab.click();
@@ -188,6 +220,21 @@ export async function reviewCalendar(page: Page, base: string) {
     path: ".impeccable/review/agenda-mobile.png",
     animations: "disabled",
   });
+  await dayPanel.getByRole("button", { name: "Editar", exact: true }).click();
+  await dialog.getByLabel("Cliente", { exact: true }).selectOption("new");
+  await dialog.getByLabel("Nome do novo cliente").fill("Novo titular da cerca");
+  const phone = dialog.getByLabel("Telefone (opcional)", { exact: true });
+  assert.equal(await phone.getAttribute("type"), "tel");
+  await phone.fill("(21) 99999-1234");
+  await dialog.getByRole("button", { name: "Salvar alterações" }).click();
+  await dialog.waitFor({ state: "hidden" });
+  const updated = await linked();
+  assert.notEqual(updated.service.clientId, client.id);
+  const clients = (await records()).filter((r) => r.kind === "client");
+  const replacement = clients.find((r) => r.id === updated.service.clientId);
+  assert.equal(replacement?.phone, "(21) 99999-1234");
+  assert.equal(clients.find((r) => r.id === client.id)?.phone, client.phone);
+
   await page.goto(base + "/?page=overview&year=2034&month=12");
   const receipts = page.getByRole("button", { name: /Recebimentos efetivos/ });
   await receipts.getByText(money(130000), { exact: true }).waitFor();

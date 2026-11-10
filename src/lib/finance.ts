@@ -171,6 +171,10 @@ export function clientAddress(client?: Client) {
     .join(" · ");
 }
 export const serviceInputSchema = schemas.service.extend({
+  newClient: schemas.client
+    .omit({ archived: true })
+    .extend({ name: text.trim().min(1), creationId: z.uuid() })
+    .optional(),
   newClientName: text.trim().default(""),
 });
 export function serviceAmount(items: Service["items"]) {
