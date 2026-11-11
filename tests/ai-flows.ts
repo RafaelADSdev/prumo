@@ -65,7 +65,8 @@ export async function reviewAssistant(page: Page, base: string) {
   await page.getByText(/Visita consultada: 10\/11\/2039 · 15:20/).waitFor();
   await page.getByRole("button", { name: /Visita consultada · 10/ }).click();
   await page
-    .getByRole("tabpanel", { name: "Serviços do dia" })
+    .getByRole("row")
+    .filter({ hasText: "Visita consultada" })
     .getByText("15:20", { exact: true })
     .waitFor();
 

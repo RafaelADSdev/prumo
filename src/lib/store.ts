@@ -26,6 +26,7 @@ export async function save(
   { createOnly = false } = {},
 ) {
   const service = kind === "service" ? serviceInputSchema.parse(input) : null;
+  const clientUpdate = service?.clientUpdate;
   const data = schemas[kind].parse(service ?? input);
   const receipt =
     receiptInput === undefined
@@ -53,7 +54,9 @@ export async function save(
     ) => {
       const prev = await tx.record.findUnique({ where: { id: key } });
       if (createOnly && prev)
-        throw Error("Já existe um registro neste destino. Revise o item antes de incluir.");
+        throw Error(
+          "Já existe um registro neste destino. Revise o item antes de incluir.",
+        );
       await tx.record.upsert({
         where: { id: key },
         create: { id: key, kind: k, data: JSON.stringify(d) },
@@ -116,7 +119,11 @@ export async function save(
         }
       }
       if (s.agenda && !s.clientId) throw Error("Informe o cliente do serviço.");
+      if (clientUpdate && (!s.clientId || newClient || newClientName))
+        throw Error("Selecione um cliente cadastrado para atualizá-lo.");
+      if (s.serviceType === "Manutenção") s.meters = undefined;
     }
+    let serviceClientName: string | undefined;
     for (const [field, expected] of [
       ["clientId", "client"],
       ["vehicleId", "vehicle"],
@@ -131,13 +138,20 @@ export async function save(
         });
         if (!linked || linked.kind !== expected)
           throw Error("Vínculo inválido: " + field);
-        if (
-          field === "clientId" &&
-          kind === "service" &&
-          JSON.parse(linked.data).archived &&
-          (!old || JSON.parse(old.data).clientId !== linkedId)
-        )
-          throw Error("O cliente foi removido. Selecione um cliente ativo.");
+        if (field === "clientId" && s) {
+          const client = JSON.parse(linked.data);
+          if (
+            client.archived &&
+            (oldService?.clientId !== linkedId || clientUpdate)
+          )
+            throw Error("O cliente foi removido. Selecione um cliente ativo.");
+          serviceClientName = clientUpdate?.name ?? client.name;
+          if (clientUpdate) {
+            const next = schemas.client.parse({ ...client, ...clientUpdate });
+            if (next.name !== client.name || next.cpf !== client.cpf)
+              await persist("client", next, linkedId);
+          }
+        }
       }
     }
     await persist(kind, s ?? data, id!);
@@ -152,29 +166,24 @@ export async function save(
           (await tx.record.findUnique({ where: { id: historicalId } })));
       const prev = linked ? entrySchema.parse(JSON.parse(linked.data)) : null;
       const amount = serviceAmount(s.items);
-      const awaitingConfirmation =
-        s.agenda && s.status !== "Concluído" && s.status !== "Cancelado";
       const cancelled = s.status === "Cancelado";
-      if (receipt?.action === "settle" && (awaitingConfirmation || cancelled))
-        throw Error("Confirme a execução antes de registrar o recebimento.");
+      if (receipt?.action === "settle" && cancelled)
+        throw Error(
+          "Não é possível registrar recebimento de um serviço cancelado.",
+        );
       if (
         s.agenda &&
-        (awaitingConfirmation || cancelled) &&
+        cancelled &&
         prev &&
         paid(prev) > 0 &&
         receipt?.action !== "unpaid"
       )
-        throw Error(
-          "Estorne os recebimentos antes de reabrir ou cancelar o serviço.",
-        );
-      if (!linked && (awaitingConfirmation || (s.agenda && cancelled))) {
+        throw Error("Estorne os recebimentos antes de cancelar o serviço.");
+      if (!linked && s.agenda && receipt?.action !== "settle") {
         if (amount !== null && s.discount > amount)
           throw Error("O desconto ultrapassa o preço do serviço.");
         return { id };
       }
-      const client = await tx.record.findUnique({
-        where: { id: s.clientId },
-      });
       let e = entrySchema.parse({
         ...prev,
         payments:
@@ -187,7 +196,7 @@ export async function save(
         amount,
         discount: s.discount,
         competence: s.competence,
-        party: client ? JSON.parse(client.data).name : (prev?.party ?? ""),
+        party: serviceClientName ?? prev?.party ?? "",
         method: s.method ?? prev?.method ?? "",
         notes: !prev || s.notes !== oldService?.notes ? s.notes : prev.notes,
         review:
@@ -198,7 +207,10 @@ export async function save(
         serviceId: id,
         cancelled:
           cancelled ||
-          awaitingConfirmation ||
+          (s.agenda &&
+            !!prev?.cancelled &&
+            s.status !== "Concluído" &&
+            receipt?.action !== "settle") ||
           (!s.agenda &&
             oldService?.status !== "Cancelado" &&
             !!prev?.cancelled),

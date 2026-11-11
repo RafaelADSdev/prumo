@@ -83,6 +83,15 @@ export const serviceStatuses = [
   "Cancelado",
   "A conferir",
 ] as const;
+export const serviceTypes = ["Concertina", "Cerca", "Manutenção"] as const;
+const cpf = z
+  .string()
+  .trim()
+  .regex(
+    /^(?:\d{11}|\d{3}\.\d{3}\.\d{3}-\d{2})?$/,
+    "Informe um CPF com 11 dígitos.",
+  )
+  .transform((value) => value.replace(/\D/g, ""));
 export const paymentMethods = [
   "Pix",
   "Dinheiro",
@@ -96,6 +105,7 @@ export const schemas = {
   client: z.object({
     archived: z.boolean().optional(),
     name: text.min(1),
+    cpf: cpf.optional(),
     nickname: text.default(""),
     phone: text.default(""),
     street: text.default(""),
@@ -121,6 +131,18 @@ export const schemas = {
     agenda: z.boolean().optional(),
     clientId: text,
     description: text.min(1),
+    serviceType: z.enum(serviceTypes).optional(),
+    meters: z
+      .string()
+      .trim()
+      .max(50)
+      .refine(
+        (value) =>
+          /^\d+(?:[,.]\d+)?$/.test(value) &&
+          Number(value.replace(",", ".")) > 0,
+        "Informe a metragem em metros.",
+      )
+      .optional(),
     date: date.nullable(),
     appointmentTime: appointmentTime.nullable().optional(),
     competence: date,
@@ -180,7 +202,13 @@ export const serviceInputSchema = schemas.service.extend({
     .extend({ name: text.trim().min(1), creationId: z.uuid() })
     .optional(),
   newClientName: text.trim().default(""),
+  clientUpdate: z
+    .object({ name: text.trim().min(1).optional(), cpf: cpf.optional() })
+    .optional(),
 });
+export function formatCpf(value = "") {
+  return value.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+}
 export function serviceAmount(items: Service["items"]) {
   let total = 0;
   for (const item of items) {

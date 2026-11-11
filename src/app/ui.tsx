@@ -73,6 +73,9 @@ import {
   paymentMethods,
   serviceAmount,
   serviceStatuses,
+  serviceTypes,
+  clientAddress,
+  formatCpf,
   type Client,
   type Service,
 } from "@/lib/finance";
@@ -167,28 +170,72 @@ function Field({
     </label>
   );
 }
+function ReceiptFields({
+  date,
+  method,
+  onChange,
+}: {
+  date: string;
+  method: string;
+  onChange: (key: "receiptDate" | "receiptMethod", value: string) => void;
+}) {
+  return (
+    <div className="form-grid">
+      <Field label="Data do recebimento">
+        <input
+          type="date"
+          required
+          value={date}
+          onChange={(event) => onChange("receiptDate", event.target.value)}
+        />
+      </Field>
+      <Field label="Forma de recebimento">
+        <input
+          required
+          list="receipt-methods"
+          value={method}
+          onChange={(event) => onChange("receiptMethod", event.target.value)}
+        />
+      </Field>
+    </div>
+  );
+}
 type ClientForm = Omit<Client, "id" | "archived">;
 function ClientFields({
   client,
   onChange,
   nameLabel = "Nome / identificação",
   autoFocus,
+  extraOnly = false,
 }: {
   client: Partial<ClientForm>;
   onChange: (key: keyof ClientForm, value: string) => void;
   nameLabel?: string;
   autoFocus?: boolean;
+  extraOnly?: boolean;
 }) {
   return (
     <>
-      <Field label={nameLabel}>
-        <input
-          autoFocus={autoFocus}
-          required
-          value={client.name ?? ""}
-          onChange={(e) => onChange("name", e.target.value)}
-        />
-      </Field>
+      {!extraOnly && (
+        <>
+          <Field label={nameLabel}>
+            <input
+              autoFocus={autoFocus}
+              required
+              value={client.name ?? ""}
+              onChange={(e) => onChange("name", e.target.value)}
+            />
+          </Field>
+          <Field label="CPF">
+            <input
+              inputMode="numeric"
+              maxLength={14}
+              value={client.cpf ?? ""}
+              onChange={(e) => onChange("cpf", e.target.value)}
+            />
+          </Field>
+        </>
+      )}
       <Field label="Apelido (opcional)">
         <input
           value={client.nickname ?? ""}
@@ -341,7 +388,6 @@ export default function App({
       new Map(entries.filter((e) => e.serviceId).map((e) => [e.serviceId, e])),
     [entries],
   );
-  const agendaMonth = month === "all" ? iso().slice(5, 7) : month;
   const cats = Array.from(
     new Set([
       ...categories,
@@ -363,7 +409,10 @@ export default function App({
     const q = new URLSearchParams(location.search);
     setPage(q.get("page") || "overview");
     setYear(q.get("year") || "2026");
-    setMonth(q.get("month") || "all");
+    setMonth(
+      q.get("month") ||
+        (q.get("page") === "calendar" ? iso().slice(5, 7) : "all"),
+    );
   }, []);
   useEffect(() => {
     if (logged)
@@ -393,12 +442,13 @@ export default function App({
   useEffect(() => {
     if (editor || payment) {
       dialog.current?.showModal();
-      const firstField = dialog.current?.querySelector<HTMLElement>(
-        "input:not([type=checkbox]),select,textarea",
-      );
-      firstField?.focus({ preventScroll: true });
       const body = dialog.current?.querySelector(".form-content");
       if (body) body.scrollTop = 0;
+      dialog.current
+        ?.querySelector<HTMLElement>(
+          "input:not([type=checkbox]),select,textarea",
+        )
+        ?.focus({ preventScroll: true });
       if (dialog.current) revealDialog(dialog.current);
     } else dialog.current?.close();
   }, [editor, payment]);
@@ -435,6 +485,8 @@ export default function App({
       setSearch("");
       setMenu(false);
       setAgendaFocus(undefined);
+      if (p === "calendar" && page !== "calendar" && month === "all")
+        setMonth(iso().slice(5, 7));
     });
   function openAiSettings() {
     go("settings");
@@ -456,7 +508,8 @@ export default function App({
       void refresh();
       return;
     }
-    const match = (item: Rec) => item.id === source.id && item.kind === source.kind;
+    const match = (item: Rec) =>
+      item.id === source.id && item.kind === source.kind;
     const record = records.find(match) ?? (await refresh())?.find(match);
     if (!record) {
       setError("Este registro não está mais disponível no Prumo.");
@@ -471,13 +524,16 @@ export default function App({
       go("calendar");
       setYear(record.date.slice(0, 4));
       setMonth(record.date.slice(5, 7));
-      setAgendaFocus(record.date);
+      setAgendaFocus(record.id);
       return;
     }
     if (source.kind === "payroll") {
       go("entries");
-      const entryId = "payroll-" + record.employeeId + "-" + record.competence.slice(0, 7);
-      const linked = records.find((item) => item.kind === "entry" && item.id === entryId);
+      const entryId =
+        "payroll-" + record.employeeId + "-" + record.competence.slice(0, 7);
+      const linked = records.find(
+        (item) => item.kind === "entry" && item.id === entryId,
+      );
       if (linked) open("entry", linked);
       return;
     }
@@ -526,7 +582,8 @@ export default function App({
     ? listedClients.filter(
         (client) =>
           [client.name, client.nickname, client.phone, client.contact].some(
-            (value) => value && normalizeClientSearch(value).includes(clientQuery),
+            (value) =>
+              value && normalizeClientSearch(value).includes(clientQuery),
           ) ||
           (searchByPhone &&
             (client.phone ?? "").replace(/\D/g, "").includes(phoneQuery)),
@@ -539,6 +596,13 @@ export default function App({
   );
   const editingServiceEntry =
     editor?.kind === "service" ? serviceEntries.get(editor.id) : undefined;
+  const agendaEditor = editor?.kind === "service" && page === "calendar";
+  const agendaClient = agendaEditor
+    ? clients.find((client) => client.id === form.clientId)
+    : undefined;
+  const agendaSingleItem = agendaEditor && form.items.length === 1;
+  const agendaAction = editor?.agendaAction;
+  const ServiceItemGroup = agendaEditor ? "details" : "div";
   const pending = periodEntries.filter(
     (e) => !e.review && balance(e) !== null && (balance(e) || 0) > 0,
   );
@@ -608,11 +672,34 @@ export default function App({
   function open(kind: string, r?: Rec, preset: Rec = {}) {
     setError("");
     setPayment(null);
+    const agendaService =
+      page === "calendar" && kind === "service" ? r : undefined;
+    const agendaAmount = agendaService
+      ? serviceAmount(agendaService.items)
+      : null;
+    const agendaEntry = agendaService
+      ? serviceEntries.get(agendaService.id)
+      : undefined;
     setEditor({
       kind,
       id: r?.id,
       createId: !r && kind === "service" ? crypto.randomUUID() : undefined,
       serviceAction: r && kind === "service" ? preset.status : undefined,
+      settleService: preset.paymentAction === "settle",
+      agendaAction:
+        agendaService &&
+        (preset.status === "Concluído"
+          ? "confirm"
+          : preset.paymentAction === "settle" &&
+              (agendaAmount !== null || agendaService.items.length === 1)
+            ? "settle"
+            : undefined),
+      agendaBalance:
+        agendaService && agendaAmount !== null
+          ? agendaAmount -
+            agendaService.discount -
+            (agendaEntry && !agendaEntry.cancelled ? paid(agendaEntry) : 0)
+          : null,
     });
     const d = r || {};
     const plannedMethod =
@@ -641,6 +728,7 @@ export default function App({
       source: "",
       cancelled: false,
       name: "",
+      cpf: "",
       model: "",
       plate: "",
       contact: "",
@@ -655,7 +743,7 @@ export default function App({
       zipCode: "",
       paymentAction: "keep",
       receiptDate: iso(),
-      receiptMethod: plannedMethod || "Pix",
+      receiptMethod: plannedMethod || (page === "calendar" ? "" : "Pix"),
       clientId: "",
       clientChoice: "",
       address: "",
@@ -674,6 +762,7 @@ export default function App({
       scope: "one",
       ...d,
       ...preset,
+      ...(kind === "client" && d.cpf ? { cpf: formatCpf(d.cpf) } : {}),
       ...(["entry", "recurrence"].includes(kind)
         ? {
             amount: dec(d.amount ?? preset.amount),
@@ -681,7 +770,23 @@ export default function App({
           }
         : {}),
       ...(kind === "service"
-        ? { discount: dec(d.discount ?? 0), method: plannedMethod }
+        ? {
+            discount: dec(d.discount ?? 0),
+            method: plannedMethod,
+            ...(page === "calendar" && !r
+              ? {
+                  description: "",
+                  items: [
+                    {
+                      description: "Serviço",
+                      quantity: "",
+                      unit: "",
+                      amount: null,
+                    },
+                  ],
+                }
+              : {}),
+          }
         : {}),
       ...(kind === "settings"
         ? {
@@ -692,6 +797,17 @@ export default function App({
             years: settings.years,
           }
         : {}),
+    });
+  }
+  function addAgendaService() {
+    const today = iso();
+    const period = year + "-" + (month === "all" ? today.slice(5, 7) : month);
+    open("service", undefined, {
+      agenda: true,
+      status: "Agendado",
+      date: today.startsWith(period) ? today : period + "-01",
+      clientChoice: "new",
+      newClient: { name: "", creationId: crypto.randomUUID() },
     });
   }
   const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
@@ -714,6 +830,17 @@ export default function App({
         data.competence = data.competence || data.date;
         data.date = data.date || null;
         data.appointmentTime = data.appointmentTime || null;
+        if (agendaEditor) {
+          data.serviceType = data.serviceType || undefined;
+          data.meters =
+            data.serviceType === "Manutenção"
+              ? undefined
+              : data.meters?.trim() || undefined;
+          data.description = data.description.trim() || data.serviceType;
+          if (!editor.id) {
+            data.items[0] = { ...data.items[0], description: data.serviceType };
+          }
+        }
         data.items = data.items.map((i: any) => ({
           ...i,
           amount:
@@ -753,6 +880,11 @@ export default function App({
             : {}),
         });
         setEditor(null);
+        if (agendaEditor && data.date) {
+          setYear(data.date.slice(0, 4));
+          if (month !== "all" || !data.date.startsWith(year))
+            setMonth(data.date.slice(5, 7));
+        }
         await refresh();
       };
       if (
@@ -1058,7 +1190,7 @@ export default function App({
                             services:
                               "Cadastre clientes e acompanhe seus serviços e recebimentos.",
                             calendar:
-                              "Organize os serviços fechados e confirme a execução no dia.",
+                              "Acompanhe serviços, confirmações e recebimentos mês a mês.",
                             fixed:
                               "Organize as contas que se repetem todos os meses.",
                             vehicles:
@@ -1082,24 +1214,29 @@ export default function App({
                       <option key={y}>{y}</option>
                     ))}
                   </select>
-                  <select
-                    aria-label="Mês"
-                    value={page === "calendar" ? agendaMonth : month}
-                    onChange={(e) => setMonth(e.target.value)}
-                  >
-                    {page !== "calendar" && (
+                  {page !== "calendar" && (
+                    <select
+                      aria-label="Mês"
+                      value={month}
+                      onChange={(e) => setMonth(e.target.value)}
+                    >
                       <option value="all">Ano completo</option>
-                    )}
-                    {months.map((m, i) => (
-                      <option value={String(i + 1).padStart(2, "0")} key={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
+                      {months.map((m, i) => (
+                        <option value={String(i + 1).padStart(2, "0")} key={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
-                <button className="primary" onClick={() => open("entry")}>
+                <button
+                  className="primary"
+                  onClick={
+                    page === "calendar" ? addAgendaService : () => open("entry")
+                  }
+                >
                   <Plus size={18} />
-                  Novo lançamento
+                  {page === "calendar" ? "Agendar serviço" : "Novo lançamento"}
                 </button>
               </div>
             </div>
@@ -1174,9 +1311,9 @@ export default function App({
           {page === "calendar" && (
             <ServiceCalendar
               key={agendaFocus ?? "agenda"}
-              initialDate={agendaFocus}
-              period={year + "-" + agendaMonth}
-              today={iso()}
+              focusedService={agendaFocus}
+              year={year}
+              month={month}
               services={services}
               clients={
                 new Map(
@@ -1187,22 +1324,17 @@ export default function App({
                 )
               }
               entries={serviceEntries}
-              onPeriod={(nextYear, nextMonth) => {
-                setYear(nextYear);
-                setMonth(nextMonth);
-              }}
-              onCreate={(date) =>
-                open("service", undefined, {
-                  agenda: true,
-                  status: "Agendado",
-                  date,
-                })
-              }
-              onEdit={(service, nextStatus) =>
+              loading={loading}
+              onMonth={setMonth}
+              onEdit={(service, action) =>
                 open(
                   "service",
                   service,
-                  nextStatus ? { status: nextStatus } : {},
+                  action === "confirm"
+                    ? { status: "Concluído" }
+                    : action === "settle"
+                      ? { paymentAction: "settle" }
+                      : {},
                 )
               }
             />
@@ -2782,6 +2914,7 @@ export default function App({
         ref={dialog}
         className="editor-dialog"
         data-kind={payment ? "payment" : editor?.kind}
+        data-agenda-action={agendaAction}
         aria-labelledby="editor-title"
         aria-describedby="editor-description"
         onCancel={(e) => {
@@ -2799,11 +2932,15 @@ export default function App({
                     ? "Registrar recebimento"
                     : "Registrar pagamento"
                 : editor?.id
-                  ? editor.serviceAction === "Concluído"
-                    ? "Confirmar serviço"
-                    : editor.serviceAction === "Cancelado"
-                      ? "Cancelar serviço"
-                      : "Editar registro"
+                  ? agendaEditor && editor.settleService
+                    ? "Dar baixa"
+                    : editor.serviceAction === "Concluído"
+                      ? "Confirmar serviço"
+                      : editor.serviceAction === "Cancelado"
+                        ? "Cancelar serviço"
+                        : agendaEditor
+                          ? "Editar serviço"
+                          : "Editar registro"
                   : (
                       {
                         entry: form.fuel
@@ -2825,24 +2962,28 @@ export default function App({
             <p id="editor-description">
               {payment
                 ? payment.description
-                : (
-                    {
-                      entry: "Organize o valor e o mês deste lançamento.",
-                      service:
-                        "Vincule o cliente e descreva os itens do serviço.",
-                      client:
-                        "Os dados essenciais para identificar seu cliente.",
-                      vehicle:
-                        "Identifique o veículo para acompanhar seus custos.",
-                      recurrence: "Defina a conta que se repete a cada mês.",
-                      settings: "Ajuste as informações do seu financeiro.",
-                      payroll:
-                        "Informe os valores do mês para este colaborador.",
-                      employee: "Cadastre quem recebe pagamentos.",
-                      category:
-                        "Crie uma categoria para organizar seus lançamentos.",
-                    } as Rec
-                  )[editor?.kind]}
+                : agendaEditor
+                  ? editor?.settleService
+                    ? "Informe a data e a forma do recebimento."
+                    : null
+                  : (
+                      {
+                        entry: "Organize o valor e o mês deste lançamento.",
+                        service:
+                          "Vincule o cliente e descreva os itens do serviço.",
+                        client:
+                          "Os dados essenciais para identificar seu cliente.",
+                        vehicle:
+                          "Identifique o veículo para acompanhar seus custos.",
+                        recurrence: "Defina a conta que se repete a cada mês.",
+                        settings: "Ajuste as informações do seu financeiro.",
+                        payroll:
+                          "Informe os valores do mês para este colaborador.",
+                        employee: "Cadastre quem recebe pagamentos.",
+                        category:
+                          "Crie uma categoria para organizar seus lançamentos.",
+                      } as Rec
+                    )[editor?.kind]}
             </p>
           </div>
           <button
@@ -2962,6 +3103,7 @@ export default function App({
                   </>
                 )}
               {editor &&
+                !agendaEditor &&
                 ["entry", "recurrence", "service"].includes(editor.kind) && (
                   <>
                     <Field label="Descrição">
@@ -3252,6 +3394,58 @@ export default function App({
                 </>
               )}
               {editor?.kind === "service" && (
+                <datalist id="receipt-methods">
+                  {paymentMethods.map((method) => (
+                    <option value={method} key={method} />
+                  ))}
+                </datalist>
+              )}
+              {agendaAction && editor && (
+                <>
+                  <div className="agenda-action-summary">
+                    <strong>{form.description}</strong>
+                    <span>
+                      {[
+                        agendaClient?.name || editingServiceEntry?.party,
+                        br(form.date),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </div>
+                  {agendaAction === "settle" && (
+                    <>
+                      {editor.agendaBalance === null ? (
+                        <Field label="Valor (R$)">
+                          <input
+                            inputMode="decimal"
+                            required
+                            value={form.items[0].amount ?? ""}
+                            onChange={(event) =>
+                              set("items", [
+                                {
+                                  ...form.items[0],
+                                  amount: event.target.value,
+                                },
+                              ])
+                            }
+                          />
+                        </Field>
+                      ) : (
+                        <p className="field-hint">
+                          Saldo a receber · {money(editor.agendaBalance)}
+                        </p>
+                      )}
+                      <ReceiptFields
+                        date={form.receiptDate}
+                        method={form.receiptMethod}
+                        onChange={set}
+                      />
+                    </>
+                  )}
+                </>
+              )}
+              {editor?.kind === "service" && !agendaAction && (
                 <>
                   <div className="form-grid">
                     <Field label="Cliente">
@@ -3269,6 +3463,7 @@ export default function App({
                             clientChoice: value === "new" ? "new" : "",
                             clientId: value === "new" ? "" : value,
                             newClient,
+                            clientUpdate: undefined,
                           }));
                         }}
                       >
@@ -3292,8 +3487,7 @@ export default function App({
                             ...f,
                             status: value,
                             paymentAction:
-                              (value === "Cancelado" ||
-                                (f.agenda && value !== "Concluído")) &&
+                              value === "Cancelado" &&
                               f.paymentAction === "settle"
                                 ? "keep"
                                 : f.paymentAction,
@@ -3306,7 +3500,54 @@ export default function App({
                       </select>
                     </Field>
                   </div>
-                  {form.clientChoice === "new" && (
+                  {agendaEditor && (form.newClient || agendaClient) && (
+                    <div className="form-grid">
+                      {(
+                        [
+                          ["name", "Nome do cliente"],
+                          ["cpf", "CPF"],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <Field label={label} key={key}>
+                          <input
+                            required={key === "name"}
+                            readOnly={!!agendaClient?.archived}
+                            inputMode={key === "cpf" ? "numeric" : undefined}
+                            maxLength={key === "cpf" ? 14 : undefined}
+                            value={
+                              form.newClient?.[key] ??
+                              form.clientUpdate?.[key] ??
+                              (key === "cpf"
+                                ? formatCpf(agendaClient?.cpf)
+                                : agendaClient?.name) ??
+                              ""
+                            }
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setForm((f) =>
+                                f.newClient
+                                  ? {
+                                      ...f,
+                                      newClient: {
+                                        ...f.newClient,
+                                        [key]: value,
+                                      },
+                                    }
+                                  : {
+                                      ...f,
+                                      clientUpdate: {
+                                        ...f.clientUpdate,
+                                        [key]: value,
+                                      },
+                                    },
+                              );
+                            }}
+                          />
+                        </Field>
+                      ))}
+                    </div>
+                  )}
+                  {form.clientChoice === "new" && !agendaEditor && (
                     <ClientFields
                       client={form.newClient}
                       nameLabel="Nome do novo cliente"
@@ -3342,14 +3583,18 @@ export default function App({
                         }}
                       />
                     </Field>
-                    <Field label="Horário (opcional)">
-                      <input
-                        type="time"
-                        disabled={!form.date}
-                        value={form.appointmentTime || ""}
-                        onChange={(e) => set("appointmentTime", e.target.value)}
-                      />
-                    </Field>
+                    {!agendaEditor && (
+                      <Field label="Horário (opcional)">
+                        <input
+                          type="time"
+                          disabled={!form.date}
+                          value={form.appointmentTime || ""}
+                          onChange={(e) =>
+                            set("appointmentTime", e.target.value)
+                          }
+                        />
+                      </Field>
+                    )}
                     {!form.agenda && (
                       <Field label="Mês de referência">
                         <input
@@ -3365,44 +3610,121 @@ export default function App({
                         />
                       </Field>
                     )}
-                  </div>
-                  <div className="form-grid">
-                    <Field label="Endereço do serviço (opcional)">
-                      <input
-                        value={form.address}
-                        onChange={(e) => set("address", e.target.value)}
-                        placeholder="Usa o endereço do cliente se vazio"
-                      />
-                    </Field>
-                    <Field label="Forma prevista de pagamento">
-                      <input
-                        list="receipt-methods"
-                        value={form.method}
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            method: e.target.value,
-                            receiptMethod: e.target.value || "Pix",
-                          }))
-                        }
-                      />
-                    </Field>
-                    <datalist id="receipt-methods">
-                      {paymentMethods.map((method) => (
-                        <option value={method} key={method} />
-                      ))}
-                    </datalist>
-                  </div>
-
-                  {form.agenda &&
-                    !["Concluído", "Cancelado"].includes(form.status) && (
-                      <p className="field-hint">
-                        O lançamento financeiro será gerado quando o serviço for
-                        confirmado.
-                      </p>
+                    {agendaEditor && (
+                      <Field label="Endereço do serviço">
+                        <input
+                          value={form.address}
+                          onChange={(e) => set("address", e.target.value)}
+                          placeholder={
+                            clientAddress(agendaClient as Client | undefined) ||
+                            "Rua, número e bairro"
+                          }
+                        />
+                      </Field>
                     )}
-                  {(!form.agenda ||
-                    form.status === "Concluído" ||
+                  </div>
+                  {agendaEditor && (
+                    <div className="form-grid">
+                      <Field label="Tipo de serviço">
+                        <select
+                          required={!editor.id}
+                          value={form.serviceType ?? ""}
+                          onChange={(event) => {
+                            const serviceType = event.target.value;
+                            setForm((f) => ({
+                              ...f,
+                              description:
+                                f.description === f.serviceType
+                                  ? serviceType
+                                  : f.description,
+                              serviceType,
+                              items:
+                                serviceType &&
+                                f.items.length === 1 &&
+                                f.items[0].description === f.serviceType
+                                  ? [
+                                      {
+                                        ...f.items[0],
+                                        description: serviceType,
+                                      },
+                                    ]
+                                  : f.items,
+                              meters:
+                                serviceType === "Manutenção" ? "" : f.meters,
+                            }));
+                          }}
+                        >
+                          <option value="">
+                            {editor.id ? "Outro / não informado" : "Selecione"}
+                          </option>
+                          {serviceTypes.map((type) => (
+                            <option key={type}>{type}</option>
+                          ))}
+                        </select>
+                      </Field>
+                      {form.serviceType &&
+                        form.serviceType !== "Manutenção" && (
+                          <Field label="Metragem (m)">
+                            <input
+                              inputMode="decimal"
+                              required
+                              maxLength={50}
+                              value={form.meters ?? ""}
+                              onChange={(event) =>
+                                set("meters", event.target.value)
+                              }
+                            />
+                          </Field>
+                        )}
+                      {agendaSingleItem && (
+                        <Field label="Valor (R$)">
+                          <input
+                            inputMode="decimal"
+                            required={form.paymentAction === "settle"}
+                            placeholder="A definir"
+                            value={
+                              typeof form.items[0].amount === "number"
+                                ? dec(form.items[0].amount)
+                                : (form.items[0].amount ?? "")
+                            }
+                            onChange={(event) =>
+                              set("items", [
+                                {
+                                  ...form.items[0],
+                                  amount: event.target.value,
+                                },
+                              ])
+                            }
+                          />
+                        </Field>
+                      )}
+                    </div>
+                  )}
+                  {!agendaEditor && (
+                    <div className="form-grid">
+                      <Field label="Endereço do serviço (opcional)">
+                        <input
+                          value={form.address}
+                          onChange={(e) => set("address", e.target.value)}
+                          placeholder="Usa o endereço do cliente se vazio"
+                        />
+                      </Field>
+                      <Field label="Forma prevista de pagamento">
+                        <input
+                          list="receipt-methods"
+                          value={form.method}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              method: e.target.value,
+                              receiptMethod: e.target.value || "Pix",
+                            }))
+                          }
+                        />
+                      </Field>
+                    </div>
+                  )}
+                  {(form.status !== "Cancelado" ||
                     (editingServiceEntry && paid(editingServiceEntry) > 0)) && (
                     <fieldset className="service-receipt">
                       <legend>Pagamento do serviço</legend>
@@ -3427,12 +3749,11 @@ export default function App({
                               ? "Manter recebimentos atuais"
                               : "Não pago"}
                           </option>
-                          {form.status !== "Cancelado" &&
-                            (!form.agenda || form.status === "Concluído") && (
-                              <option value="settle">
-                                Pago — quitar saldo ao salvar
-                              </option>
-                            )}
+                          {form.status !== "Cancelado" && (
+                            <option value="settle">
+                              Pago — dar baixa ao salvar
+                            </option>
+                          )}
                           {editingServiceEntry &&
                             paid(editingServiceEntry) > 0 && (
                               <option value="unpaid">
@@ -3442,28 +3763,11 @@ export default function App({
                         </select>
                       </Field>
                       {form.paymentAction === "settle" && (
-                        <div className="form-grid">
-                          <Field label="Data do recebimento">
-                            <input
-                              type="date"
-                              required
-                              value={form.receiptDate}
-                              onChange={(e) =>
-                                set("receiptDate", e.target.value)
-                              }
-                            />
-                          </Field>
-                          <Field label="Forma de recebimento">
-                            <input
-                              required
-                              list="receipt-methods"
-                              value={form.receiptMethod}
-                              onChange={(e) =>
-                                set("receiptMethod", e.target.value)
-                              }
-                            />
-                          </Field>
-                        </div>
+                        <ReceiptFields
+                          date={form.receiptDate}
+                          method={form.receiptMethod}
+                          onChange={set}
+                        />
                       )}
                       {editingServiceEntry &&
                         editingServiceEntry.payments.length > 0 && (
@@ -3494,76 +3798,148 @@ export default function App({
                         )}
                     </fieldset>
                   )}
-                  <h3>Itens do serviço</h3>
-                  <p className="muted">
-                    Informe o total de cada item. Se o preço ainda não estiver
-                    definido, deixe o valor em branco.
-                  </p>
-                  {form.items.map((item: any, i: number) => (
-                    <div className="service-item" key={i}>
-                      {[
-                        ["description", "Descrição"],
-                        ["quantity", "Quantidade"],
-                        ["unit", "Unidade"],
-                        ["amount", "Total do item (R$)"],
-                      ].map(([k, l]) => (
-                        <Field key={k} label={l}>
-                          <input
-                            required={
-                              k === "description" ||
-                              (k === "amount" &&
-                                form.paymentAction === "settle")
-                            }
-                            value={
-                              k === "amount" && typeof item[k] === "number"
-                                ? dec(item[k])
-                                : (item[k] ?? "")
-                            }
-                            placeholder={k === "amount" ? "Sem preço" : ""}
-                            onChange={(e) =>
+                  {(!agendaEditor || editor.id) && (
+                    <ServiceItemGroup
+                      className={agendaEditor ? "form-details" : undefined}
+                      open={
+                        agendaEditor && !agendaSingleItem ? true : undefined
+                      }
+                    >
+                      {agendaEditor ? (
+                        <summary>Itens do serviço</summary>
+                      ) : (
+                        <h3>Itens do serviço</h3>
+                      )}
+                      <p className="muted">
+                        Informe o total de cada item. Se o preço ainda não
+                        estiver definido, deixe o valor em branco.
+                      </p>
+                      {form.items.map((item: any, i: number) => (
+                        <div className="service-item" key={i}>
+                          {[
+                            ["description", "Descrição"],
+                            ["quantity", "Quantidade"],
+                            ["unit", "Unidade"],
+                            ["amount", "Total do item (R$)"],
+                          ]
+                            .filter(
+                              ([key]) => !agendaSingleItem || key !== "amount",
+                            )
+                            .map(([k, l]) => (
+                              <Field key={k} label={l}>
+                                <input
+                                  required={
+                                    k === "description" ||
+                                    (k === "amount" &&
+                                      form.paymentAction === "settle")
+                                  }
+                                  value={
+                                    k === "amount" &&
+                                    typeof item[k] === "number"
+                                      ? dec(item[k])
+                                      : (item[k] ?? "")
+                                  }
+                                  placeholder={
+                                    k === "amount" ? "Sem preço" : ""
+                                  }
+                                  onChange={(e) =>
+                                    set(
+                                      "items",
+                                      form.items.map((r: any, j: number) =>
+                                        i === j
+                                          ? { ...r, [k]: e.target.value }
+                                          : r,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </Field>
+                            ))}
+                          <button
+                            type="button"
+                            disabled={form.items.length === 1}
+                            onClick={() =>
                               set(
                                 "items",
-                                form.items.map((r: any, j: number) =>
-                                  i === j ? { ...r, [k]: e.target.value } : r,
+                                form.items.filter(
+                                  (_: any, j: number) => i !== j,
                                 ),
                               )
                             }
-                          />
-                        </Field>
+                          >
+                            Remover
+                          </button>
+                        </div>
                       ))}
                       <button
                         type="button"
-                        disabled={form.items.length === 1}
                         onClick={() =>
-                          set(
-                            "items",
-                            form.items.filter((_: any, j: number) => i !== j),
-                          )
+                          set("items", [
+                            ...form.items,
+                            {
+                              description: "",
+                              quantity: "",
+                              unit: "",
+                              amount: null,
+                            },
+                          ])
                         }
                       >
-                        Remover
+                        <Plus size={15} />
+                        Adicionar item
                       </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      set("items", [
-                        ...form.items,
-                        {
-                          description: "",
-                          quantity: "",
-                          unit: "",
-                          amount: null,
-                        },
-                      ])
-                    }
-                  >
-                    <Plus size={15} />
-                    Adicionar item
-                  </button>
+                    </ServiceItemGroup>
+                  )}
                   <details className="form-details">
-                    <summary>Desconto e observações</summary>
+                    <summary>
+                      {agendaEditor
+                        ? "Mais detalhes do serviço"
+                        : "Desconto e observações"}
+                    </summary>
+                    {agendaEditor && (
+                      <>
+                        <Field label="Descrição">
+                          <input
+                            value={form.description}
+                            placeholder={
+                              form.serviceType || "Descrição do serviço"
+                            }
+                            onChange={(event) =>
+                              set("description", event.target.value)
+                            }
+                          />
+                        </Field>
+                        <div className="form-grid">
+                          <Field label="Horário (opcional)">
+                            <input
+                              type="time"
+                              disabled={!form.date}
+                              value={form.appointmentTime || ""}
+                              onChange={(event) =>
+                                set("appointmentTime", event.target.value)
+                              }
+                            />
+                          </Field>
+                          <Field label="Forma prevista de pagamento">
+                            <input
+                              list="receipt-methods"
+                              value={form.method}
+                              onChange={(event) => {
+                                const method = event.target.value;
+                                setForm((f) => ({
+                                  ...f,
+                                  method,
+                                  receiptMethod:
+                                    f.receiptMethod === f.method
+                                      ? method
+                                      : f.receiptMethod,
+                                }));
+                              }}
+                            />
+                          </Field>
+                        </div>
+                      </>
+                    )}
                     <Field label="Desconto explícito (R$)">
                       <input
                         value={form.discount}
@@ -3577,6 +3953,21 @@ export default function App({
                       />
                     </Field>
                   </details>
+                  {agendaEditor && form.clientChoice === "new" && (
+                    <details className="form-details">
+                      <summary>Mais dados do cliente</summary>
+                      <ClientFields
+                        client={form.newClient}
+                        extraOnly
+                        onChange={(key, value) =>
+                          setForm((f) => ({
+                            ...f,
+                            newClient: { ...f.newClient, [key]: value },
+                          }))
+                        }
+                      />
+                    </details>
+                  )}
                 </>
               )}
               {editor?.kind === "recurrence" && (
@@ -3722,15 +4113,17 @@ export default function App({
               )}
             </div>
             <div className="dialog-footer">
-              {editor?.id && ["client", "service"].includes(editor.kind) && (
-                <button
-                  className="danger"
-                  type="button"
-                  onClick={() => requestArchive(editor.kind, editor.id)}
-                >
-                  Remover {editor.kind === "client" ? "cliente" : "serviço"}
-                </button>
-              )}
+              {editor?.id &&
+                !agendaAction &&
+                ["client", "service"].includes(editor.kind) && (
+                  <button
+                    className="danger"
+                    type="button"
+                    onClick={() => requestArchive(editor.kind, editor.id)}
+                  >
+                    Remover {editor.kind === "client" ? "cliente" : "serviço"}
+                  </button>
+                )}
               {editor?.id &&
                 ["vehicle", "employee", "category", "recurrence"].includes(
                   editor.kind,
@@ -3788,27 +4181,29 @@ export default function App({
               <button className="primary" type="submit" disabled={busy}>
                 {busy
                   ? "Salvando…"
-                  : editor?.id
-                    ? editor.serviceAction === "Concluído" &&
-                      form.status === "Concluído"
-                      ? "Confirmar execução"
-                      : editor.serviceAction === "Cancelado" &&
-                          form.status === "Cancelado"
-                        ? "Salvar cancelamento"
-                        : "Salvar alterações"
-                    : (
-                        {
-                          entry: "Salvar lançamento",
-                          client: "Salvar cliente",
-                          service: "Salvar serviço",
-                          vehicle: "Salvar veículo",
-                          recurrence: "Salvar despesa fixa",
-                          employee: "Salvar colaborador",
-                          category: "Salvar categoria",
-                          payroll: "Salvar compromisso",
-                          settings: "Salvar configurações",
-                        } as Rec
-                      )[editor?.kind] || "Salvar"}
+                  : agendaEditor && form.paymentAction === "settle"
+                    ? "Confirmar baixa"
+                    : editor?.id
+                      ? editor.serviceAction === "Concluído" &&
+                        form.status === "Concluído"
+                        ? "Confirmar execução"
+                        : editor.serviceAction === "Cancelado" &&
+                            form.status === "Cancelado"
+                          ? "Salvar cancelamento"
+                          : "Salvar alterações"
+                      : (
+                          {
+                            entry: "Salvar lançamento",
+                            client: "Salvar cliente",
+                            service: "Salvar serviço",
+                            vehicle: "Salvar veículo",
+                            recurrence: "Salvar despesa fixa",
+                            employee: "Salvar colaborador",
+                            category: "Salvar categoria",
+                            payroll: "Salvar compromisso",
+                            settings: "Salvar configurações",
+                          } as Rec
+                        )[editor?.kind] || "Salvar"}
               </button>
             </div>
           </form>
