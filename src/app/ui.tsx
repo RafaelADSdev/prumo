@@ -1056,6 +1056,72 @@ export default function App({
       </div>
     );
   }
+  const serviceScheduleFields = editor?.kind === "service" && (
+    <div className="form-grid">
+      <Field
+        label={form.agenda ? "Data do serviço" : "Data do serviço (opcional)"}
+      >
+        <input
+          type="date"
+          required={!!form.agenda}
+          value={form.date || ""}
+          onChange={(event) => {
+            const date = event.target.value;
+            setForm((current) => ({
+              ...current,
+              date,
+              appointmentTime: date ? current.appointmentTime : "",
+            }));
+          }}
+        />
+      </Field>
+      <Field label="Horário (opcional)">
+        <input
+          type="time"
+          disabled={!form.date}
+          value={form.appointmentTime || ""}
+          onChange={(event) => set("appointmentTime", event.target.value)}
+        />
+      </Field>
+      {!form.agenda && (
+        <Field label="Mês de referência">
+          <input
+            type="month"
+            required
+            value={form.competence?.slice(0, 7) || ""}
+            onChange={(event) =>
+              set(
+                "competence",
+                event.target.value ? event.target.value + "-01" : "",
+              )
+            }
+          />
+        </Field>
+      )}
+    </div>
+  );
+  const serviceStatusField = editor?.kind === "service" && (
+    <Field label="Situação operacional">
+      <select
+        value={form.status}
+        onChange={(event) => {
+          const nextStatus = event.target.value;
+          setForm((current) => ({
+            ...current,
+            status: nextStatus,
+            paymentAction:
+              nextStatus === "Cancelado" && current.paymentAction === "settle"
+                ? "keep"
+                : current.paymentAction,
+          }));
+        }}
+      >
+        {serviceStatuses.map((item) => (
+          <option key={item}>{item}</option>
+        ))}
+      </select>
+    </Field>
+  );
   if (!logged)
     return (
       <LoginScreen
@@ -1177,7 +1243,13 @@ export default function App({
           aria-busy={loading}
         >
           {page !== "assistant" && (
-            <div className="page-heading">
+            <div
+              className={
+                page === "calendar"
+                  ? "page-heading agenda-page-heading"
+                  : "page-heading"
+              }
+            >
               <div>
                 <h1>{nav.find((n) => n[0] === page)?.[1]}</h1>
                 <p>
@@ -3447,7 +3519,8 @@ export default function App({
               )}
               {editor?.kind === "service" && !agendaAction && (
                 <>
-                  <div className="form-grid">
+                  {agendaEditor && serviceScheduleFields}
+                  <div className={agendaEditor ? undefined : "form-grid"}>
                     <Field label="Cliente">
                       <select
                         required
@@ -3478,27 +3551,7 @@ export default function App({
                           ))}
                       </select>
                     </Field>
-                    <Field label="Situação operacional">
-                      <select
-                        value={form.status}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setForm((f) => ({
-                            ...f,
-                            status: value,
-                            paymentAction:
-                              value === "Cancelado" &&
-                              f.paymentAction === "settle"
-                                ? "keep"
-                                : f.paymentAction,
-                          }));
-                        }}
-                      >
-                        {serviceStatuses.map((s) => (
-                          <option key={s}>{s}</option>
-                        ))}
-                      </select>
-                    </Field>
+                    {!agendaEditor && serviceStatusField}
                   </div>
                   {agendaEditor && (form.newClient || agendaClient) && (
                     <div className="form-grid">
@@ -3559,146 +3612,103 @@ export default function App({
                       }
                     />
                   )}
-                  <div className="form-grid">
-                    <Field
-                      label={
-                        form.agenda
-                          ? "Data do serviço"
-                          : "Data do serviço (opcional)"
-                      }
-                    >
+                  {agendaEditor ? (
+                    <Field label="Endereço do serviço">
                       <input
-                        type="date"
-                        required={!!form.agenda}
-                        value={form.date || ""}
-                        onChange={(e) => {
-                          const date = e.target.value;
-                          setForm((current) => ({
-                            ...current,
-                            date,
-                            appointmentTime: date
-                              ? current.appointmentTime
-                              : "",
-                          }));
-                        }}
+                        value={form.address}
+                        onChange={(event) => set("address", event.target.value)}
+                        placeholder={
+                          clientAddress(agendaClient as Client | undefined) ||
+                          "Rua, número e bairro"
+                        }
                       />
                     </Field>
-                    {!agendaEditor && (
-                      <Field label="Horário (opcional)">
-                        <input
-                          type="time"
-                          disabled={!form.date}
-                          value={form.appointmentTime || ""}
-                          onChange={(e) =>
-                            set("appointmentTime", e.target.value)
-                          }
-                        />
-                      </Field>
-                    )}
-                    {!form.agenda && (
-                      <Field label="Mês de referência">
-                        <input
-                          type="month"
-                          required
-                          value={form.competence?.slice(0, 7) || ""}
-                          onChange={(e) =>
-                            set(
-                              "competence",
-                              e.target.value ? e.target.value + "-01" : "",
-                            )
-                          }
-                        />
-                      </Field>
-                    )}
-                    {agendaEditor && (
-                      <Field label="Endereço do serviço">
-                        <input
-                          value={form.address}
-                          onChange={(e) => set("address", e.target.value)}
-                          placeholder={
-                            clientAddress(agendaClient as Client | undefined) ||
-                            "Rua, número e bairro"
-                          }
-                        />
-                      </Field>
-                    )}
-                  </div>
+                  ) : (
+                    serviceScheduleFields
+                  )}
                   {agendaEditor && (
-                    <div className="form-grid">
-                      <Field label="Tipo de serviço">
-                        <select
-                          required={!editor.id}
-                          value={form.serviceType ?? ""}
-                          onChange={(event) => {
-                            const serviceType = event.target.value;
-                            setForm((f) => ({
-                              ...f,
-                              description:
-                                f.description === f.serviceType
-                                  ? serviceType
-                                  : f.description,
-                              serviceType,
-                              items:
-                                serviceType &&
-                                f.items.length === 1 &&
-                                f.items[0].description === f.serviceType
-                                  ? [
-                                      {
-                                        ...f.items[0],
-                                        description: serviceType,
-                                      },
-                                    ]
-                                  : f.items,
-                              meters:
-                                serviceType === "Manutenção" ? "" : f.meters,
-                            }));
-                          }}
-                        >
-                          <option value="">
-                            {editor.id ? "Outro / não informado" : "Selecione"}
-                          </option>
-                          {serviceTypes.map((type) => (
-                            <option key={type}>{type}</option>
-                          ))}
-                        </select>
-                      </Field>
-                      {form.serviceType &&
-                        form.serviceType !== "Manutenção" && (
-                          <Field label="Metragem (m)">
+                    <>
+                      <div className="form-grid">
+                        <Field label="Tipo de serviço">
+                          <select
+                            required={!editor.id}
+                            value={form.serviceType ?? ""}
+                            onChange={(event) => {
+                              const serviceType = event.target.value;
+                              setForm((f) => ({
+                                ...f,
+                                description:
+                                  f.description === f.serviceType
+                                    ? serviceType
+                                    : f.description,
+                                serviceType,
+                                items:
+                                  serviceType &&
+                                  f.items.length === 1 &&
+                                  f.items[0].description === f.serviceType
+                                    ? [
+                                        {
+                                          ...f.items[0],
+                                          description: serviceType,
+                                        },
+                                      ]
+                                    : f.items,
+                                meters:
+                                  serviceType === "Manutenção" ? "" : f.meters,
+                              }));
+                            }}
+                          >
+                            <option value="">
+                              {editor.id
+                                ? "Outro / não informado"
+                                : "Selecione"}
+                            </option>
+                            {serviceTypes.map((type) => (
+                              <option key={type}>{type}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        {form.serviceType &&
+                          form.serviceType !== "Manutenção" && (
+                            <Field label="Metragem (m)">
+                              <input
+                                inputMode="decimal"
+                                required
+                                maxLength={50}
+                                value={form.meters ?? ""}
+                                onChange={(event) =>
+                                  set("meters", event.target.value)
+                                }
+                              />
+                            </Field>
+                          )}
+                      </div>
+                      <div className="form-grid">
+                        {agendaSingleItem && (
+                          <Field label="Valor (R$)">
                             <input
                               inputMode="decimal"
-                              required
-                              maxLength={50}
-                              value={form.meters ?? ""}
+                              required={form.paymentAction === "settle"}
+                              placeholder="A definir"
+                              value={
+                                typeof form.items[0].amount === "number"
+                                  ? dec(form.items[0].amount)
+                                  : (form.items[0].amount ?? "")
+                              }
                               onChange={(event) =>
-                                set("meters", event.target.value)
+                                set("items", [
+                                  {
+                                    ...form.items[0],
+                                    amount: event.target.value,
+                                  },
+                                ])
                               }
                             />
                           </Field>
                         )}
-                      {agendaSingleItem && (
-                        <Field label="Valor (R$)">
-                          <input
-                            inputMode="decimal"
-                            required={form.paymentAction === "settle"}
-                            placeholder="A definir"
-                            value={
-                              typeof form.items[0].amount === "number"
-                                ? dec(form.items[0].amount)
-                                : (form.items[0].amount ?? "")
-                            }
-                            onChange={(event) =>
-                              set("items", [
-                                {
-                                  ...form.items[0],
-                                  amount: event.target.value,
-                                },
-                              ])
-                            }
-                          />
-                        </Field>
-                      )}
-                    </div>
+                        {serviceStatusField}
+                      </div>
+                    </>
                   )}
                   {!agendaEditor && (
                     <div className="form-grid">
@@ -3798,6 +3808,16 @@ export default function App({
                         )}
                     </fieldset>
                   )}
+                  {agendaEditor && (
+                    <Field label="Observação">
+                      <textarea
+                        rows={3}
+                        maxLength={2000}
+                        value={form.notes}
+                        onChange={(event) => set("notes", event.target.value)}
+                      />
+                    </Field>
+                  )}
                   {(!agendaEditor || editor.id) && (
                     <ServiceItemGroup
                       className={agendaEditor ? "form-details" : undefined}
@@ -3890,55 +3910,46 @@ export default function App({
                       </button>
                     </ServiceItemGroup>
                   )}
+                  {agendaEditor && (
+                    <details className="form-details">
+                      <summary>Mais detalhes do serviço</summary>
+                      <Field label="Descrição">
+                        <input
+                          value={form.description}
+                          placeholder={
+                            form.serviceType || "Descrição do serviço"
+                          }
+                          onChange={(event) =>
+                            set("description", event.target.value)
+                          }
+                        />
+                      </Field>
+                    </details>
+                  )}
                   <details className="form-details">
                     <summary>
                       {agendaEditor
-                        ? "Mais detalhes do serviço"
+                        ? "Pagamento previsto e desconto"
                         : "Desconto e observações"}
                     </summary>
                     {agendaEditor && (
-                      <>
-                        <Field label="Descrição">
-                          <input
-                            value={form.description}
-                            placeholder={
-                              form.serviceType || "Descrição do serviço"
-                            }
-                            onChange={(event) =>
-                              set("description", event.target.value)
-                            }
-                          />
-                        </Field>
-                        <div className="form-grid">
-                          <Field label="Horário (opcional)">
-                            <input
-                              type="time"
-                              disabled={!form.date}
-                              value={form.appointmentTime || ""}
-                              onChange={(event) =>
-                                set("appointmentTime", event.target.value)
-                              }
-                            />
-                          </Field>
-                          <Field label="Forma prevista de pagamento">
-                            <input
-                              list="receipt-methods"
-                              value={form.method}
-                              onChange={(event) => {
-                                const method = event.target.value;
-                                setForm((f) => ({
-                                  ...f,
-                                  method,
-                                  receiptMethod:
-                                    f.receiptMethod === f.method
-                                      ? method
-                                      : f.receiptMethod,
-                                }));
-                              }}
-                            />
-                          </Field>
-                        </div>
-                      </>
+                      <Field label="Forma prevista de pagamento">
+                        <input
+                          list="receipt-methods"
+                          value={form.method}
+                          onChange={(event) => {
+                            const method = event.target.value;
+                            setForm((current) => ({
+                              ...current,
+                              method,
+                              receiptMethod:
+                                current.receiptMethod === current.method
+                                  ? method
+                                  : current.receiptMethod,
+                            }));
+                          }}
+                        />
+                      </Field>
                     )}
                     <Field label="Desconto explícito (R$)">
                       <input
@@ -3946,12 +3957,14 @@ export default function App({
                         onChange={(e) => set("discount", e.target.value)}
                       />
                     </Field>
-                    <Field label="Observações">
-                      <textarea
-                        value={form.notes}
-                        onChange={(e) => set("notes", e.target.value)}
-                      />
-                    </Field>
+                    {!agendaEditor && (
+                      <Field label="Observações">
+                        <textarea
+                          value={form.notes}
+                          onChange={(e) => set("notes", e.target.value)}
+                        />
+                      </Field>
+                    )}
                   </details>
                   {agendaEditor && form.clientChoice === "new" && (
                     <details className="form-details">

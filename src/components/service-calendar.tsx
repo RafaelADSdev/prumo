@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import { Check, Pencil, Search } from "lucide-react";
 import { compareAppointments } from "@/lib/appointments";
 import {
@@ -28,26 +28,31 @@ const shortMonths = [
   "Nov",
   "Dez",
 ];
+const periods = [
+  ...reportMonths.map((label, index) => ({
+    value: String(index + 1).padStart(2, "0"),
+    label,
+    short: shortMonths[index],
+  })),
+  { value: "all", label: "Total", short: "Total" },
+];
 const columns = [
-  "Dia da semana",
   "Data",
-  "Nome do cliente",
-  "CPF",
-  "Endereço",
+  "Cliente",
   "Serviço",
-  "Metragem",
   "Valor",
-  "Execução",
-  "Pagamento",
+  "Situação",
+  "Observação",
   "Ações",
 ];
-const dateLabel = (date: string) => date.split("-").reverse().join("/");
 const weekday = new Intl.DateTimeFormat("pt-BR", {
   weekday: "long",
   timeZone: "UTC",
 });
 const normalize = (value: string) =>
   value.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/\p{M}/gu, "");
+
+type EditService = (service: Service, action?: "confirm" | "settle") => void;
 
 function agendaRow(service: Service, client?: Client, entry?: Entry) {
   const amount = entry ? entry.amount : serviceAmount(service.items);
@@ -88,6 +93,155 @@ function agendaRow(service: Service, client?: Client, entry?: Entry) {
   };
 }
 
+function AgendaServiceRow({
+  row,
+  rowRef,
+  onEdit,
+}: {
+  row: ReturnType<typeof agendaRow>;
+  rowRef?: Ref<HTMLTableRowElement>;
+  onEdit: EditService;
+}) {
+  const {
+    service,
+    value,
+    received,
+    cancelled,
+    settled,
+    address,
+    cpf,
+    name,
+    meters,
+    methods,
+  } = row;
+  const completed = service.status === "Concluído";
+  const canSettle = !cancelled && !settled && value !== 0;
+  const payment = settled ? "Pago" : received > 0 ? "Parcial" : "Em aberto";
+  const note = service.notes?.trim();
+  const longNote = note && (note.length > 120 || note.split("\n").length > 2);
+
+  return (
+    <tr
+      role="row"
+      className="agenda-row"
+      ref={rowRef}
+      data-focused={!!rowRef || undefined}
+      data-has-note={!!note || undefined}
+    >
+      <td role="cell" className="agenda-date">
+        {service.date ? (
+          <time dateTime={service.date}>
+            {service.date.split("-").reverse().join("/")}
+          </time>
+        ) : (
+          <span className="agenda-meta">Sem data</span>
+        )}
+        {(service.date || service.appointmentTime) && (
+          <small className="agenda-meta agenda-date-meta">
+            {service.date && (
+              <span>
+                {weekday.format(new Date(service.date)).replace("-feira", "")}
+              </span>
+            )}
+            {service.appointmentTime && <span>{service.appointmentTime}</span>}
+          </small>
+        )}
+      </td>
+      <th scope="row" role="rowheader" className="agenda-client">
+        <span>{name || "Cliente não informado"}</span>
+        {cpf && (
+          <small className="agenda-meta">
+            CPF <span>{cpf}</span>
+          </small>
+        )}
+        {address && <small className="agenda-meta">{address}</small>}
+      </th>
+      <td role="cell" className="agenda-service">
+        <span>{service.serviceType || service.description}</span>
+        {meters && <small className="agenda-meta">{meters}</small>}
+        {service.serviceType && service.description !== service.serviceType && (
+          <small className="agenda-meta">{service.description}</small>
+        )}
+      </td>
+      <td
+        role="cell"
+        className="agenda-value"
+        data-unknown={value === null || undefined}
+      >
+        {value === null ? "A definir" : money(value).replace("\u00a0", " ")}
+      </td>
+      <td role="cell" className="agenda-state">
+        <div className="agenda-statuses">
+          <span
+            className="agenda-status"
+            data-state={completed ? "done" : "neutral"}
+          >
+            {service.status}
+          </span>
+          {!cancelled && (
+            <span
+              className="agenda-status"
+              data-state={settled ? "done" : "pending"}
+            >
+              {payment}
+            </span>
+          )}
+        </div>
+        {!cancelled && received > 0 && !settled && (
+          <small className="agenda-meta">{money(received)} recebido</small>
+        )}
+        {!cancelled && methods && (
+          <small className="agenda-meta">{methods}</small>
+        )}
+      </td>
+      <td
+        role="cell"
+        className="agenda-observation"
+        data-empty={!note || undefined}
+      >
+        <span className="agenda-observation-label">Observação</span>
+        {longNote ? (
+          <details className="agenda-note">
+            <summary>Ver observação</summary>
+            <p>{note}</p>
+          </details>
+        ) : (
+          <span className="agenda-note-text">{note || "—"}</span>
+        )}
+      </td>
+      <td role="cell" className="agenda-action-cell">
+        <div className="agenda-actions">
+          <button
+            type="button"
+            aria-label="Editar serviço"
+            onClick={() => onEdit(service)}
+          >
+            <Pencil size={14} aria-hidden="true" /> Editar
+          </button>
+          {!cancelled && !completed && (
+            <button
+              type="button"
+              aria-label="Confirmar serviço"
+              onClick={() => onEdit(service, "confirm")}
+            >
+              <Check size={15} aria-hidden="true" /> Confirmar
+            </button>
+          )}
+          {canSettle && (
+            <button
+              type="button"
+              className="agenda-settle"
+              onClick={() => onEdit(service, "settle")}
+            >
+              Dar baixa
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export function ServiceCalendar({
   year,
   month,
@@ -107,12 +261,11 @@ export function ServiceCalendar({
   entries: Map<string, Entry>;
   loading: boolean;
   onMonth: (month: string) => void;
-  onEdit: (service: Service, action?: "confirm" | "settle") => void;
+  onEdit: EditService;
 }) {
   const [search, setSearch] = useState("");
-  const activeTab = useRef<HTMLButtonElement>(null);
-  const tabs = useRef<HTMLDivElement>(null);
   const focusedRow = useRef<HTMLTableRowElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
   const rows = services
     .filter(
       (service) =>
@@ -141,6 +294,7 @@ export function ServiceCalendar({
         row.address,
         row.service.serviceType,
         row.service.description,
+        row.service.notes,
       ].join(" "),
     ).includes(query),
   );
@@ -152,8 +306,9 @@ export function ServiceCalendar({
             value: sum.value + (row.value ?? 0),
             received: sum.received + row.received,
             open: sum.open + Math.max(0, (row.value ?? 0) - row.received),
+            unpriced: sum.unpriced + Number(row.value === null),
           },
-    { value: 0, received: 0, open: 0 },
+    { value: 0, received: 0, open: 0, unpriced: 0 },
   );
   const heading =
     month === "all" ? `Total de ${year}` : periodLabel(year, month);
@@ -163,221 +318,143 @@ export function ServiceCalendar({
   useEffect(() => {
     if (hasFocusedRow) focusedRow.current?.scrollIntoView({ block: "nearest" });
   }, [hasFocusedRow, focusedService]);
-  useEffect(() => {
-    const tab = activeTab.current;
-    const list = tabs.current;
-    if (!tab || !list) return;
-    const button = tab.getBoundingClientRect();
-    const viewport = list.getBoundingClientRect();
-    if (button.right > viewport.right || button.left < viewport.left)
-      list.scrollLeft += button.left - viewport.left;
-  }, [month]);
 
   return (
     <section className="service-calendar" aria-labelledby="agenda-month">
-      <div className="agenda-toolbar">
-        <label className="agenda-search">
-          <Search size={16} aria-hidden="true" />
-          <input
-            type="search"
-            aria-label="Buscar na agenda"
-            placeholder="Buscar cliente, CPF ou endereço…"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </label>
-        <span aria-live="polite">
-          {query ? `${matches.length} de ` : ""}
-          {rows.length} {rows.length === 1 ? "serviço" : "serviços"}
-        </span>
-      </div>
       <div className="agenda-workbook">
-        <h2 id="agenda-month">{heading}</h2>
+        <div className="agenda-toolbar">
+          <div>
+            <h2 id="agenda-month">{heading}</h2>
+            <p className="agenda-count" aria-live="polite">
+              {query ? `${matches.length} de ` : ""}
+              {rows.length} {rows.length === 1 ? "serviço" : "serviços"}
+            </p>
+          </div>
+          <div className="agenda-tools">
+            <select
+              className="agenda-month-select"
+              aria-label="Mês da agenda"
+              value={month}
+              onChange={(event) => onMonth(event.target.value)}
+            >
+              {periods.map((period) => (
+                <option key={period.value} value={period.value}>
+                  {period.value === "all" ? "Ano completo" : period.label}
+                </option>
+              ))}
+            </select>
+            <label className="agenda-search">
+              <Search size={16} aria-hidden="true" />
+              <input
+                ref={searchInput}
+                type="search"
+                aria-label="Buscar na agenda"
+                placeholder="Buscar…"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
+          </div>
+        </div>
         <div
-          className="agenda-scroll"
-          tabIndex={0}
+          className="agenda-months"
+          role="group"
+          aria-label="Meses da agenda"
+        >
+          {periods.map((period) => (
+            <button
+              type="button"
+              key={period.value}
+              aria-pressed={month === period.value}
+              aria-label={period.label}
+              onClick={() => onMonth(period.value)}
+            >
+              {period.short}
+            </button>
+          ))}
+        </div>
+        <div
+          className="agenda-table-scroll"
           role="region"
           aria-label="Planilha de serviços"
+          tabIndex={0}
         >
-          <table className="agenda-table" aria-labelledby="agenda-month">
-            <thead>
-              <tr>
+          <table
+            className="agenda-table"
+            role="table"
+            aria-labelledby="agenda-month"
+          >
+            <thead role="rowgroup">
+              <tr role="row">
                 {columns.map((column) => (
-                  <th key={column} scope="col">
-                    <span>{column}</span>
+                  <th key={column} scope="col" role="columnheader">
+                    {column}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody>
-              {matches.map(
-                ({
-                  service,
-                  value,
-                  received,
-                  cancelled,
-                  settled,
-                  address,
-                  cpf,
-                  name,
-                  meters,
-                  methods,
-                }) => (
-                  <tr
-                    key={service.id}
-                    ref={service.id === focusedService ? focusedRow : undefined}
-                    data-focused={service.id === focusedService || undefined}
-                  >
-                    <td>
-                      {service.date
-                        ? weekday
-                            .format(new Date(service.date))
-                            .replace("-feira", "")
-                        : "—"}
-                    </td>
-                    <td>
-                      {service.date ? (
-                        <time dateTime={service.date}>
-                          {dateLabel(service.date)}
-                        </time>
-                      ) : (
-                        "—"
-                      )}
-                      {service.appointmentTime && (
-                        <small>{service.appointmentTime}</small>
-                      )}
-                    </td>
-                    <th scope="row">{name || "—"}</th>
-                    <td className="agenda-number">{cpf || "—"}</td>
-                    <td>{address || "—"}</td>
-                    <td>
-                      <span>{service.serviceType || service.description}</span>
-                      {service.serviceType &&
-                        service.description !== service.serviceType && (
-                          <small>{service.description}</small>
-                        )}
-                    </td>
-                    <td>{meters || "—"}</td>
-                    <td className="agenda-number">
-                      {value === null
-                        ? "A definir"
-                        : money(value).replace("\u00a0", " ")}
-                    </td>
-                    <td>
-                      <span
-                        className="agenda-status"
-                        data-done={service.status === "Concluído"}
-                      >
-                        {service.status}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="agenda-status" data-done={settled}>
-                        {cancelled
-                          ? "—"
-                          : settled
-                            ? "Pago"
-                            : received > 0
-                              ? "Parcial"
-                              : "Em aberto"}
-                      </span>
-                      {!cancelled && received > 0 && !settled && (
-                        <small>{money(received)} recebido</small>
-                      )}
-                      {!cancelled && methods && <small>{methods}</small>}
-                      {!cancelled && !settled && value !== 0 && (
-                        <button
-                          className="agenda-settle"
-                          onClick={() => onEdit(service, "settle")}
-                        >
-                          Dar baixa
-                        </button>
-                      )}
-                    </td>
-                    <td>
-                      <div className="agenda-actions">
-                        <button
-                          onClick={() => onEdit(service)}
-                          title="Editar serviço"
-                          aria-label="Editar serviço"
-                        >
-                          <Pencil size={15} aria-hidden="true" />
-                        </button>
-                        {!cancelled && service.status !== "Concluído" && (
-                          <button
-                            onClick={() => onEdit(service, "confirm")}
-                            title="Confirmar serviço"
-                            aria-label="Confirmar serviço"
-                          >
-                            <Check size={16} aria-hidden="true" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ),
-              )}
+            <tbody role="rowgroup">
+              {matches.map((row) => (
+                <AgendaServiceRow
+                  key={row.service.id}
+                  row={row}
+                  rowRef={
+                    row.service.id === focusedService ? focusedRow : undefined
+                  }
+                  onEdit={onEdit}
+                />
+              ))}
               {!matches.length && (
-                <tr className="agenda-empty">
-                  <td colSpan={columns.length}>
-                    {loading
-                      ? "Carregando serviços…"
-                      : query
-                        ? "Nenhum serviço encontrado."
-                        : "Nenhum serviço neste período."}
+                <tr className="agenda-empty" role="row">
+                  <td colSpan={columns.length} role="cell">
+                    <p>
+                      {loading
+                        ? "Carregando serviços…"
+                        : query
+                          ? "Nenhum serviço encontrado."
+                          : "Nenhum serviço neste período."}
+                    </p>
+                    {!loading && query && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearch("");
+                          searchInput.current?.focus();
+                        }}
+                      >
+                        Limpar busca
+                      </button>
+                    )}
                   </td>
                 </tr>
-              )}
-              {Array.from(
-                { length: Math.max(0, 9 - matches.length) },
-                (_, index) => (
-                  <tr key={index} className="agenda-blank" aria-hidden="true">
-                    {columns.map((column) => (
-                      <td key={column} />
-                    ))}
-                  </tr>
-                ),
               )}
             </tbody>
           </table>
         </div>
-        <div
-          className="agenda-months"
-          ref={tabs}
-          role="group"
-          aria-label="Meses da agenda"
-        >
-          {[...reportMonths, "Total"].map((label, index) => {
-            const key =
-              index === 12 ? "all" : String(index + 1).padStart(2, "0");
-            return (
-              <button
-                key={key}
-                ref={month === key ? activeTab : undefined}
-                aria-pressed={month === key}
-                aria-label={label}
-                onClick={() => onMonth(key)}
-              >
-                {shortMonths[index] ?? label}
-              </button>
-            );
-          })}
+        <div className="agenda-summary">
+          <dl className="agenda-totals">
+            <div>
+              <dt>Total {month === "all" ? "do ano" : "do mês"}</dt>
+              <dd>{money(total.value)}</dd>
+            </div>
+            <div>
+              <dt>Recebido</dt>
+              <dd>{money(total.received)}</dd>
+            </div>
+            <div>
+              <dt>A receber</dt>
+              <dd>{money(total.open)}</dd>
+            </div>
+          </dl>
+          {total.unpriced > 0 && (
+            <p className="agenda-summary-note">
+              {total.unpriced === 1
+                ? "1 serviço com valor a definir"
+                : `${total.unpriced} serviços com valor a definir`}
+            </p>
+          )}
         </div>
       </div>
-      <dl className="agenda-totals">
-        <div>
-          <dt>Total {month === "all" ? "do ano" : "do mês"}</dt>
-          <dd>{money(total.value)}</dd>
-        </div>
-        <div>
-          <dt>Recebido</dt>
-          <dd>{money(total.received)}</dd>
-        </div>
-        <div>
-          <dt>Saldo a receber</dt>
-          <dd>{money(total.open)}</dd>
-        </div>
-      </dl>
     </section>
   );
 }
