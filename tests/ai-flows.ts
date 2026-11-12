@@ -40,6 +40,8 @@ export async function reviewAssistant(page: Page, base: string) {
   const clientId = await write("client", {
     name: "Cliente Assistente",
     nickname: "Caio IA",
+    phone: "81911110002",
+    address: "Rua de teste, 2",
   });
   await write("service", {
     agenda: true,
@@ -65,8 +67,7 @@ export async function reviewAssistant(page: Page, base: string) {
   await page.getByText(/Visita consultada: 10\/11\/2039 · 15:20/).waitFor();
   await page.getByRole("button", { name: /Visita consultada · 10/ }).click();
   await page
-    .getByRole("row")
-    .filter({ hasText: "Visita consultada" })
+    .getByRole("tabpanel", { name: "Serviços do dia" })
     .getByText("15:20", { exact: true })
     .waitFor();
 

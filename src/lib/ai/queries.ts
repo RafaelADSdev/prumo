@@ -107,7 +107,7 @@ export function reportFacts(
 const guide = {
   calendar: [
     "Agenda",
-    "Abra Agenda e selecione Agendar serviço. Escolha ou cadastre o cliente, informe a data, o tipo e os dados do serviço. Na planilha mensal, use Confirmar serviço para registrar a execução e Dar baixa para lançar o recebimento no financeiro.",
+    "Abra a Agenda, escolha um dia no calendário e selecione Agendar serviço. Escolha ou cadastre o cliente e preencha os dados. Em Serviços do dia, use Confirmar serviço para registrar a execução e Dar baixa para registrar o recebimento no financeiro.",
   ],
   services: [
     "Serviços e clientes",

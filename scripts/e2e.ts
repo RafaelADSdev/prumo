@@ -194,7 +194,11 @@ try {
   );
   const client = await call("/api/data", {
     kind: "client",
-    data: { name: "Cliente de teste" },
+    data: {
+      name: "Cliente de teste",
+      phone: "81911110001",
+      address: "Rua de teste, 1",
+    },
   });
   const service = await call("/api/data", {
     kind: "service",

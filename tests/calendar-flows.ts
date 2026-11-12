@@ -39,22 +39,37 @@ export async function reviewCalendar(page: Page, base: string) {
   await page.setViewportSize({ width: 1440, height: 950 });
   await page.goto(base + "/?page=calendar&year=2034&month=11");
   const dialog = page.locator(".editor-dialog[open]");
-  const sheet = page.getByRole("region", { name: "Planilha de serviços" });
-  const months = page.getByRole("group", { name: "Meses da agenda" });
-  const row = sheet
-    .getByRole("row")
-    .filter({ hasText: "Instalação de cerca da agenda" });
+  const calendar = page.locator(".service-calendar");
+  const day = (number: number) =>
+    page.getByRole("button", {
+      name: new RegExp(`^${number} de Novembro de 2034,`),
+    });
+  const upcoming = page.getByRole("tabpanel", { name: "Próximos serviços" });
+  const dayPanel = page.getByRole("tabpanel", { name: "Serviços do dia" });
+  const appointments = dayPanel.locator(".calendar-appointments > li");
+  const row = appointments.filter({ hasText: "Instalação de cerca da agenda" });
   const add = page.getByRole("button", { name: "Agendar serviço" });
+  const monthSelect = page.getByLabel("Mês", { exact: true });
 
+  await day(22).click();
   await add.click();
-  await dialog
-    .getByLabel("Data do serviço", { exact: true })
-    .fill("2034-11-22");
+  assert.equal(
+    await dialog.getByLabel("Data do serviço", { exact: true }).inputValue(),
+    "2034-11-22",
+  );
   await dialog.getByLabel("Horário (opcional)").fill("09:15");
   await dialog
     .getByLabel("Nome do cliente", { exact: true })
     .fill("Cliente da cerca");
-  await dialog.getByLabel("CPF", { exact: true }).fill("123.456.789-09");
+  await dialog
+    .getByLabel("Número com DDD", { exact: true })
+    .fill("(81) 99999-0100");
+  await dialog
+    .getByLabel("Endereço", { exact: true })
+    .fill("Rua do Cliente, 10");
+  await dialog
+    .getByLabel("Observações (opcional)", { exact: true })
+    .fill("Preferência por contato de manhã.");
   await dialog
     .getByLabel("Endereço do serviço", { exact: true })
     .fill("Rua da Cerca, 30");
@@ -70,8 +85,10 @@ export async function reviewCalendar(page: Page, base: string) {
     "Data do serviço",
     "Horário (opcional)",
     "Cliente",
+    "Número com DDD",
     "Nome do cliente",
-    "CPF",
+    "Endereço",
+    "Observações (opcional)",
     "Endereço do serviço",
     "Tipo de serviço",
     "Metragem (m)",
@@ -95,91 +112,73 @@ export async function reviewCalendar(page: Page, base: string) {
   await dialog.waitFor({ state: "hidden" });
 
   for (const value of [
-    "quarta",
-    "22/11/2034",
     "09:15",
     "Cliente da cerca",
-    "123.456.789-09",
+    "(81) 99999-0100",
     "Rua da Cerca, 30",
-    "Cerca",
     "30,5 m",
     "Agendado",
     "Em aberto",
     "Levar os postes de fixação.",
   ])
     await row.getByText(value, { exact: true }).waitFor();
+  await row
+    .getByRole("definition")
+    .filter({ hasText: /^Cerca$/ })
+    .waitFor();
   const initial = await linked();
-  assert.deepEqual(await sheet.getByRole("columnheader").allTextContents(), [
-    "Data",
-    "Cliente",
-    "Serviço",
-    "Valor",
-    "Situação",
-    "Observação",
-    "Ações",
-  ]);
-  assert.equal(initial.client.cpf, "12345678909");
+  assert.equal(await day(22).getAttribute("aria-pressed"), "true");
+  await dayPanel
+    .getByRole("heading", { name: "22 de Novembro de 2034" })
+    .waitFor();
+  assert.equal(initial.client.phone, "81999990100");
+  assert.equal(initial.client.address, "Rua do Cliente, 10");
+  assert.equal(initial.client.notes, "Preferência por contato de manhã.");
   assert.equal(initial.service.notes, "Levar os postes de fixação.");
   assert.equal(initial.service.meters, "30,5");
   assert.equal(initial.entries.length, 0);
 
-  await months.getByRole("button", { name: "Outubro" }).click();
+  await page.getByRole("button", { name: "Mês anterior" }).click();
+  assert.equal(await monthSelect.inputValue(), "10");
   await row.waitFor({ state: "hidden" });
-  await months.getByRole("button", { name: "Total" }).click();
+  await page.getByRole("tab", { name: "Serviços do dia" }).press("Home");
+  await upcoming
+    .getByRole("button", { name: /Instalação de cerca da agenda/ })
+    .click();
+  assert.equal(await monthSelect.inputValue(), "11");
   await row.waitFor();
-  await months.getByRole("button", { name: "Novembro" }).click();
-  const search = page.getByRole("searchbox", { name: "Buscar na agenda" });
-  await search.fill("12345678909");
-  await row.waitFor();
-  await search.fill("postes de fixação");
-  await row.waitFor();
-  await search.fill("sem correspondência");
-  await sheet.getByText("Nenhum serviço encontrado.").waitFor();
-  await sheet.getByRole("button", { name: "Limpar busca" }).click();
-  assert.equal(await search.inputValue(), "");
-  assert.ok(
-    await search.evaluate((element) => element === document.activeElement),
-  );
+
+  await row.getByRole("button", { name: "Cancelar serviço" }).click();
+  await dialog.getByRole("button", { name: "Salvar cancelamento" }).click();
+  await row.getByText("Cancelado", { exact: true }).waitFor();
+  assert.equal(await row.getByRole("button", { name: "Dar baixa" }).count(), 0);
+  await row.getByRole("button", { name: "Editar", exact: true }).click();
+  await dialog.getByLabel("Situação operacional").selectOption("Agendado");
+  await dialog.getByRole("button", { name: "Salvar alterações" }).click();
+  await row.getByText("Agendado", { exact: true }).waitFor();
 
   await row.getByRole("button", { name: "Confirmar serviço" }).click();
   await dialog.getByRole("button", { name: "Confirmar execução" }).click();
   await row.getByText("Concluído", { exact: true }).waitFor();
   assert.equal((await linked()).entries.length, 0);
 
-  await row.getByRole("button", { name: "Editar serviço" }).click();
+  await row.getByRole("button", { name: "Editar", exact: true }).click();
   await dialog
     .getByLabel("Nome do cliente", { exact: true })
     .fill("Cliente atualizado");
-  await dialog.getByLabel("CPF", { exact: true }).fill("98765432100");
+  await dialog
+    .getByLabel("Número com DDD", { exact: true })
+    .fill("81999990101");
   await dialog.getByLabel("Valor (R$)").fill("1300,00");
   const note =
-    "Levar os postes de fixação.\nConfirmar o acesso com a portaria.\n" +
-    "Revisar o acesso antes de levar material para a instalação.\n"
-      .repeat(20)
-      .trimEnd();
+    "Levar os postes de fixação.\nConfirmar o acesso com a portaria.";
   await dialog.getByLabel("Observação", { exact: true }).fill(note);
   await dialog.getByRole("button", { name: "Salvar alterações" }).click();
-  await row.getByText("987.654.321-00", { exact: true }).waitFor();
+  await row.getByText("(81) 99999-0101", { exact: true }).waitFor();
   const updated = await linked();
   assert.equal(updated.client.id, initial.client.id);
   assert.equal(updated.service.notes, note);
-  const noteToggle = row.getByText("Ver observação", { exact: true });
-  await noteToggle.click();
   await row.getByText(/Confirmar o acesso com a portaria/).waitFor();
-  assert.ok(
-    await sheet.evaluate((element) => {
-      element.scrollTop = element.scrollHeight;
-      const headerTop = element
-        .querySelector("thead th")!
-        .getBoundingClientRect().top;
-      const scrolled =
-        element.scrollTop > 0 &&
-        Math.abs(headerTop - element.getBoundingClientRect().top) < 2;
-      element.scrollTop = 0;
-      return scrolled;
-    }),
-  );
-  await noteToggle.click();
 
   await row.getByRole("button", { name: "Dar baixa" }).click();
   assert.equal(
@@ -189,8 +188,8 @@ export async function reviewCalendar(page: Page, base: string) {
   await dialog.getByLabel("Data do recebimento").fill("2034-12-01");
   await dialog.getByLabel("Forma de recebimento").fill("Pix");
   await dialog.getByRole("button", { name: "Confirmar baixa" }).click();
-  await row.getByText("Pago", { exact: true }).waitFor();
-  await row.getByText("Pix", { exact: true }).waitFor();
+  await row.getByText(/^Quitado/).waitFor();
+  await row.getByText("Pix · 01/12/2034", { exact: true }).waitFor();
   const settled = await linked();
   assert.equal(settled.entries.length, 1);
   assert.equal(settled.entries[0].party, "Cliente atualizado");
@@ -212,10 +211,17 @@ export async function reviewCalendar(page: Page, base: string) {
   assert.ok(retry.ok());
   assert.equal((await linked()).entries[0].payments.length, 1);
 
+  await day(1).click();
   await add.click();
   await dialog
     .getByLabel("Nome do cliente", { exact: true })
     .fill("Cliente da manutenção");
+  await dialog
+    .getByLabel("Número com DDD", { exact: true })
+    .fill("81999990102");
+  await dialog
+    .getByLabel("Endereço", { exact: true })
+    .fill("Rua da Manutenção, 20");
   await dialog.getByLabel("Tipo de serviço").selectOption("Manutenção");
   assert.equal(await dialog.getByLabel("Metragem (m)").count(), 0);
   await dialog.getByLabel("Valor (R$)").fill("300,00");
@@ -223,16 +229,35 @@ export async function reviewCalendar(page: Page, base: string) {
   await dialog.getByLabel("Data do recebimento").fill("2034-11-01");
   await dialog.getByLabel("Forma de recebimento").fill("Dinheiro");
   await dialog.getByRole("button", { name: "Confirmar baixa" }).click();
-  const maintenance = sheet
-    .getByRole("row")
-    .filter({ hasText: "Cliente da manutenção" });
+  const maintenance = appointments.filter({ hasText: "Cliente da manutenção" });
   await maintenance.getByText("Agendado", { exact: true }).waitFor();
-  await maintenance.getByText("Pago", { exact: true }).waitFor();
+  await maintenance.getByText(/^Quitado/).waitFor();
 
   await add.click();
   await dialog
+    .getByLabel("Número com DDD", { exact: true })
+    .fill("+55 (81) 99999-0101");
+  await dialog
+    .getByRole("button", { name: "Usar cadastro de Cliente atualizado" })
+    .click();
+  assert.equal(
+    await dialog.getByLabel("Cliente", { exact: true }).inputValue(),
+    initial.client.id,
+  );
+  assert.equal(
+    await dialog.getByLabel("Endereço", { exact: true }).inputValue(),
+    "Rua do Cliente, 10",
+  );
+  await dialog.getByLabel("Cliente", { exact: true }).selectOption("new");
+  await dialog
     .getByLabel("Nome do cliente", { exact: true })
     .fill("Helena Martins de Albuquerque");
+  await dialog
+    .getByLabel("Número com DDD", { exact: true })
+    .fill("81999990103");
+  await dialog
+    .getByLabel("Endereço", { exact: true })
+    .fill("Rua das Palmeiras, 50");
   await dialog
     .getByLabel("Data do serviço", { exact: true })
     .fill("2034-11-18");
@@ -242,12 +267,12 @@ export async function reviewCalendar(page: Page, base: string) {
   await dialog.getByLabel("Tipo de serviço").selectOption("Concertina");
   await dialog.getByLabel("Metragem (m)").fill("24");
   await dialog.getByRole("button", { name: "Salvar serviço" }).click();
-  const pending = sheet
-    .getByRole("row")
-    .filter({ hasText: "Helena Martins de Albuquerque" });
+  const pending = appointments.filter({
+    hasText: "Helena Martins de Albuquerque",
+  });
   await pending.getByText("A definir", { exact: true }).waitFor();
-  await page
-    .getByText("1 serviço com valor a definir", { exact: true })
+  await dayPanel
+    .getByRole("heading", { name: "18 de Novembro de 2034" })
     .waitFor();
 
   const dismissNotice = async () => {
@@ -269,6 +294,7 @@ export async function reviewCalendar(page: Page, base: string) {
   };
   await dismissNotice();
   await chooseTheme("dark");
+  await page.getByRole("tab", { name: "Próximos serviços" }).click();
   await page.screenshot({
     path: ".impeccable/review/agenda-desktop.png",
     animations: "disabled",
@@ -287,24 +313,22 @@ export async function reviewCalendar(page: Page, base: string) {
       ),
     );
     assert.ok(
-      await sheet.evaluate(
+      await calendar.evaluate(
         (element) => element.scrollWidth <= element.clientWidth,
       ),
     );
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  const monthSelect = page.getByRole("combobox", { name: "Mês da agenda" });
   await monthSelect.selectOption("10");
-  await row.waitFor({ state: "hidden" });
+  await page
+    .getByRole("heading", { name: "Outubro de 2034", exact: true })
+    .waitFor();
   await monthSelect.selectOption("11");
-  await monthSelect.focus();
-  await page.keyboard.press("Tab");
-  assert.ok(
-    await search.evaluate((element) => element === document.activeElement),
-  );
+  await day(18).click();
   await pending.getByRole("button", { name: "Confirmar serviço" }).waitFor();
   await pending.getByRole("button", { name: "Dar baixa" }).waitFor();
-  await row.getByRole("button", { name: "Editar serviço" }).click();
+  await day(22).click();
+  await row.getByRole("button", { name: "Editar", exact: true }).click();
   await dialog.getByText("Histórico de recebimentos").click();
   await dialog.getByRole("button", { name: "Editar baixa" }).click();
   await dialog.getByLabel("Data efetiva").fill("2034-12-02");
@@ -335,5 +359,7 @@ export async function reviewCalendar(page: Page, base: string) {
     .filter({ hasText: "Instalação de cerca da agenda" })
     .getByText(/Pix · 02\/12\/2034/)
     .waitFor();
-  console.log("Agenda mensal: edição, CPF, confirmação, baixa e celular: OK.");
+  console.log(
+    "Agenda mensal: cadastro por telefone, edição, confirmação, baixa e celular: OK.",
+  );
 }

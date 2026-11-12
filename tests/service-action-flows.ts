@@ -17,7 +17,11 @@ export async function reviewServiceActions(page: Page, base: string) {
       .records as Record<string, any>[];
   const client = await request({
     kind: "client",
-    data: { name: "Cliente para recebimentos" },
+    data: {
+      name: "Cliente para recebimentos",
+      phone: "81911110003",
+      address: "Rua de teste, 3",
+    },
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(base + "/?page=services&year=2032&month=01");

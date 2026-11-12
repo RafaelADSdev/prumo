@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { schemas } from "../src/lib/finance";
+import {
+  clientAddress,
+  formatClientPhone,
+  normalizeClientPhone,
+  schemas,
+} from "../src/lib/finance";
 
 describe("Cadastro de clientes", () => {
   it("preserva os dados antigos e deixa os novos campos opcionais", () => {
@@ -30,5 +35,28 @@ describe("Cadastro de clientes", () => {
       notes: "Ligar antes da visita.",
     };
     expect(schemas.client.parse(input)).toEqual(input);
+    expect(clientAddress(schemas.client.parse(input))).toContain(
+      "Rua das Flores, 123",
+    );
+    expect(
+      clientAddress(schemas.client.parse({ ...input, address: "Rua B, 2" })),
+    ).toBe("Rua B, 2");
+  });
+  it("identifica o mesmo telefone com DDD independentemente da formatação", () => {
+    for (const value of [
+      "81999990100",
+      "(81) 99999-0100",
+      "+55 (81) 99999-0100",
+      "5581999990100",
+    ])
+      expect(normalizeClientPhone(value)).toBe("81999990100");
+    expect(formatClientPhone("8133334444")).toBe("(81) 3333-4444");
+    for (const value of [
+      "99999-0100",
+      "+55 99999-0100",
+      "telefone 81999990100",
+      "",
+    ])
+      expect(normalizeClientPhone(value)).toBe("");
   });
 });

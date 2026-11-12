@@ -126,7 +126,9 @@ export async function POST(req: Request) {
     }
     if (!(b.kind in schemas)) throw Error("Tipo inválido");
     return Response.json(
-      await save(db, b.kind as Kind, b.data, b.id, b.scope, b.receipt),
+      await save(db, b.kind as Kind, b.data, b.id, b.scope, b.receipt, {
+        requireClientDetails: true,
+      }),
     );
   } catch (e) {
     return failure(e);

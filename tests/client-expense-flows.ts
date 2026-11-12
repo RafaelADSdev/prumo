@@ -16,18 +16,10 @@ export async function reviewClientsAndExpenses(page: Page, base: string) {
   await page.getByRole("button", { name: "Novo cliente", exact: true }).click();
   const dialog = page.locator(".editor-dialog[open]");
   const fields = {
-    "Nome / identificação": "Cliente com ficha completa",
-    "Apelido (opcional)": "Dona Ana",
-    "Telefone (opcional)": "(11) 99999-0000",
-    "Contato (opcional)": "ana@exemplo.com",
-    "Rua / logradouro": "Rua das Flores",
-    Número: "123",
-    Complemento: "Casa 2",
-    Bairro: "Centro",
-    Cidade: "São Paulo",
-    "Estado / UF": "SP",
-    CEP: "01000-000",
-    "Descrição / observações (opcional)": "Ligar antes da visita.",
+    "Número com DDD": "(11) 99999-0000",
+    "Nome do cliente": "Cliente com ficha completa",
+    Endereço: "Rua das Flores, 123",
+    "Observações (opcional)": "Ligar antes da visita.",
   };
   for (const [name, value] of Object.entries(fields))
     await dialog.getByLabel(name, { exact: true }).fill(value);
@@ -35,6 +27,8 @@ export async function reviewClientsAndExpenses(page: Page, base: string) {
     .getByRole("button", { name: "Salvar cliente", exact: true })
     .click();
   await dialog.waitFor({ state: "hidden" });
+  const search = page.getByRole("searchbox", { name: "Pesquisar clientes" });
+  await search.fill("+55 (11) 99999-0000");
   await page
     .getByRole("button", {
       name: "Ver cliente: Cliente com ficha completa",
@@ -47,22 +41,37 @@ export async function reviewClientsAndExpenses(page: Page, base: string) {
     .getByRole("button", { name: "Editar cliente", exact: true })
     .click();
   assert.equal(
-    await dialog
-      .getByLabel("Telefone (opcional)", { exact: true })
-      .inputValue(),
-    fields["Telefone (opcional)"],
+    await dialog.getByLabel("Número com DDD", { exact: true }).inputValue(),
+    fields["Número com DDD"],
   );
-  await dialog.getByLabel("Apelido (opcional)", { exact: true }).fill("Ana");
+  await dialog
+    .getByLabel("Observações (opcional)", { exact: true })
+    .fill("Confirmar antes da visita.");
   await dialog
     .getByRole("button", { name: "Salvar alterações", exact: true })
     .click();
   await dialog.waitFor({ state: "hidden" });
   const data = await (await page.request.get(base + "/api/data")).json();
   const client = data.records.find(
-    (r: { name: string }) => r.name === fields["Nome / identificação"],
+    (r: { name: string }) => r.name === fields["Nome do cliente"],
   );
-  assert.equal(client.nickname, "Ana");
-  assert.equal(client.notes, fields["Descrição / observações (opcional)"]);
+  assert.equal(client.phone, "11999990000");
+  assert.equal(client.notes, "Confirmar antes da visita.");
+  for (const [phone, error] of [
+    ["", /telefone com DDD/],
+    ["999990000", /telefone com DDD/],
+    ["+55 (11) 99999-0000", /número já pertence/],
+  ] as const) {
+    const invalid = await page.request.post(base + "/api/data", {
+      headers: { Origin: base },
+      data: {
+        kind: "client",
+        data: { name: "Outro cadastro", address: "Rua B, 2", phone },
+      },
+    });
+    assert.equal(invalid.status(), 400);
+    assert.match((await invalid.json()).error, error);
+  }
   for (const [description, date, amount] of [
     ["Serviço antigo do cliente", "2024-02-01", 50000],
     ["Serviço recente sem preço", "2028-03-01", null],
@@ -83,7 +92,11 @@ export async function reviewClientsAndExpenses(page: Page, base: string) {
   }
   const other = await save({
     kind: "client",
-    data: { name: "Outro cliente isolado" },
+    data: {
+      name: "Outro cliente isolado",
+      phone: "11999990001",
+      address: "Rua B, 2",
+    },
   });
   await save({
     kind: "service",
@@ -180,8 +193,8 @@ export async function reviewClientsAndExpenses(page: Page, base: string) {
   const backedUpClient = JSON.parse(
     backup.records.find((r: { id: string }) => r.id === client.id).data,
   );
-  assert.equal(backedUpClient.street, "Rua das Flores");
-  assert.equal(backedUpClient.phone, fields["Telefone (opcional)"]);
+  assert.equal(backedUpClient.address, fields.Endereço);
+  assert.equal(backedUpClient.phone, "11999990000");
 
   for (const [category, amount] of [
     ["Despesas fixas", 10000],

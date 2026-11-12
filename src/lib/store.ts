@@ -2,7 +2,9 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   schemas,
   Kind,
+  clientAddress,
   entrySchema,
+  normalizeClientPhone,
   paid,
   recurrenceDate,
   settleService,
@@ -23,7 +25,7 @@ export async function save(
   id?: string,
   scope = "one",
   receiptInput?: unknown,
-  { createOnly = false } = {},
+  { createOnly = false, requireClientDetails = false } = {},
 ) {
   const service = kind === "service" ? serviceInputSchema.parse(input) : null;
   const clientUpdate = service?.clientUpdate;
@@ -57,17 +59,60 @@ export async function save(
         throw Error(
           "Já existe um registro neste destino. Revise o item antes de incluir.",
         );
+      if (k === "client") {
+        const client = schemas.client.parse(d);
+        const previous = prev ? JSON.parse(prev.data) : null;
+        const phone = normalizeClientPhone(client.phone);
+        const previousPhone = normalizeClientPhone(previous?.phone);
+        const isNewManualClient = !prev && requireClientDetails;
+        const changedPhone = client.phone !== (previous?.phone ?? "");
+        const name = client.name.trim();
+        if (!name && (isNewManualClient || client.name !== previous?.name))
+          throw Error("Informe o nome do cliente.");
+        if (
+          !phone &&
+          (isNewManualClient ||
+            previousPhone ||
+            (changedPhone && client.phone.trim()))
+        )
+          throw Error("Informe o telefone com DDD, usando 10 ou 11 dígitos.");
+        if (
+          (isNewManualClient || clientAddress(previous ?? undefined)) &&
+          !clientAddress(client)
+        )
+          throw Error("Informe o endereço do cliente.");
+        if (phone && phone !== previousPhone) {
+          // The serializable transaction protects this lookup and the write from concurrent claims.
+          const clients = await tx.record.findMany({
+            where: { kind: "client", id: { not: key } },
+            select: { data: true },
+          });
+          if (
+            clients.some(
+              (record) =>
+                normalizeClientPhone(JSON.parse(record.data).phone) === phone,
+            )
+          )
+            throw Error("Esse número já pertence a um cliente cadastrado.");
+        }
+        d = {
+          ...client,
+          name: name || client.name,
+          phone: phone || client.phone,
+        };
+      }
+      const serialized = JSON.stringify(d);
       await tx.record.upsert({
         where: { id: key },
-        create: { id: key, kind: k, data: JSON.stringify(d) },
-        update: { data: JSON.stringify(d) },
+        create: { id: key, kind: k, data: serialized },
+        update: { data: serialized },
       });
       await tx.audit.create({
         data: {
           action: action || (prev ? "edit" : "create"),
           entityId: key,
           before: prev?.data,
-          after: JSON.stringify(d),
+          after: serialized,
         },
       });
     };
@@ -148,7 +193,11 @@ export async function save(
           serviceClientName = clientUpdate?.name ?? client.name;
           if (clientUpdate) {
             const next = schemas.client.parse({ ...client, ...clientUpdate });
-            if (next.name !== client.name || next.cpf !== client.cpf)
+            if (
+              Object.entries(clientUpdate).some(
+                ([field, value]) => client[field] !== value,
+              )
+            )
               await persist("client", next, linkedId);
           }
         }

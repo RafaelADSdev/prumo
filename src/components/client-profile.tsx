@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { ArrowLeft, Pencil, Plus, ArrowRight } from "lucide-react";
 import type { z } from "zod";
-import { schemas, money } from "@/lib/finance";
+import { schemas, formatClientPhone, money } from "@/lib/finance";
 
 type Client = z.infer<typeof schemas.client> & { id: string };
 type Service = {
@@ -111,13 +111,15 @@ export function ClientProfile({
           <>
             <dl className="client-contact">
               <div>
-                <dt>Telefone</dt>
-                <dd>{client.phone || "Não informado"}</dd>
+                <dt>Número com DDD</dt>
+                <dd>{formatClientPhone(client.phone) || "Não informado"}</dd>
               </div>
-              <div>
-                <dt>Outro contato</dt>
-                <dd>{client.contact || "Não informado"}</dd>
-              </div>
+              {client.contact && (
+                <div>
+                  <dt>Outro contato</dt>
+                  <dd>{client.contact}</dd>
+                </div>
+              )}
             </dl>
             <h3>Descrição / observações</h3>
             <p className="client-notes">
@@ -125,7 +127,15 @@ export function ClientProfile({
             </p>
           </>
         )}
-        {tab === 1 && (
+        {tab === 1 && client.address?.trim() && (
+          <dl className="client-contact">
+            <div>
+              <dt>Endereço</dt>
+              <dd>{client.address}</dd>
+            </div>
+          </dl>
+        )}
+        {tab === 1 && !client.address?.trim() && (
           <dl className="client-contact">
             <div>
               <dt>Rua e número</dt>

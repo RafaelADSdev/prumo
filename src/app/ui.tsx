@@ -75,7 +75,8 @@ import {
   serviceStatuses,
   serviceTypes,
   clientAddress,
-  formatCpf,
+  formatClientPhone,
+  normalizeClientPhone,
   type Client,
   type Service,
 } from "@/lib/finance";
@@ -200,115 +201,54 @@ function ReceiptFields({
     </div>
   );
 }
-type ClientForm = Omit<Client, "id" | "archived">;
+type ClientForm = Pick<Client, "phone" | "name" | "address" | "notes">;
 function ClientFields({
   client,
   onChange,
-  nameLabel = "Nome / identificação",
   autoFocus,
-  extraOnly = false,
+  requiredDetails = true,
+  readOnly = false,
 }: {
   client: Partial<ClientForm>;
   onChange: (key: keyof ClientForm, value: string) => void;
-  nameLabel?: string;
   autoFocus?: boolean;
-  extraOnly?: boolean;
+  requiredDetails?: boolean;
+  readOnly?: boolean;
 }) {
   return (
     <>
-      {!extraOnly && (
-        <>
-          <Field label={nameLabel}>
-            <input
-              autoFocus={autoFocus}
-              required
-              value={client.name ?? ""}
-              onChange={(e) => onChange("name", e.target.value)}
-            />
-          </Field>
-          <Field label="CPF">
-            <input
-              inputMode="numeric"
-              maxLength={14}
-              value={client.cpf ?? ""}
-              onChange={(e) => onChange("cpf", e.target.value)}
-            />
-          </Field>
-        </>
-      )}
-      <Field label="Apelido (opcional)">
-        <input
-          value={client.nickname ?? ""}
-          onChange={(e) => onChange("nickname", e.target.value)}
-        />
-      </Field>
-      <Field label="Telefone (opcional)">
+      <Field label="Número com DDD">
         <input
           type="tel"
           autoComplete="tel"
+          autoFocus={autoFocus}
+          required={requiredDetails}
+          readOnly={readOnly}
+          placeholder="(81) 99999-9999"
           value={client.phone ?? ""}
           onChange={(e) => onChange("phone", e.target.value)}
         />
       </Field>
-      <Field label="Contato (opcional)">
+      <Field label="Nome do cliente">
         <input
-          value={client.contact ?? ""}
-          onChange={(e) => onChange("contact", e.target.value)}
+          required
+          readOnly={readOnly}
+          value={client.name ?? ""}
+          onChange={(e) => onChange("name", e.target.value)}
         />
       </Field>
-      <details className="form-details" open>
-        <summary>Endereço (opcional)</summary>
-        <Field label="Rua / logradouro">
-          <input
-            autoComplete="street-address"
-            value={client.street ?? ""}
-            onChange={(e) => onChange("street", e.target.value)}
-          />
-        </Field>
-        <div className="form-grid">
-          <Field label="Número">
-            <input
-              value={client.number ?? ""}
-              onChange={(e) => onChange("number", e.target.value)}
-            />
-          </Field>
-          <Field label="Complemento">
-            <input
-              value={client.complement ?? ""}
-              onChange={(e) => onChange("complement", e.target.value)}
-            />
-          </Field>
-          <Field label="Bairro">
-            <input
-              value={client.neighborhood ?? ""}
-              onChange={(e) => onChange("neighborhood", e.target.value)}
-            />
-          </Field>
-          <Field label="Cidade">
-            <input
-              autoComplete="address-level2"
-              value={client.city ?? ""}
-              onChange={(e) => onChange("city", e.target.value)}
-            />
-          </Field>
-          <Field label="Estado / UF">
-            <input
-              autoComplete="address-level1"
-              value={client.state ?? ""}
-              onChange={(e) => onChange("state", e.target.value)}
-            />
-          </Field>
-          <Field label="CEP">
-            <input
-              autoComplete="postal-code"
-              value={client.zipCode ?? ""}
-              onChange={(e) => onChange("zipCode", e.target.value)}
-            />
-          </Field>
-        </div>
-      </details>
-      <Field label="Descrição / observações (opcional)">
+      <Field label="Endereço">
+        <input
+          autoComplete="street-address"
+          required={requiredDetails}
+          readOnly={readOnly}
+          value={client.address ?? ""}
+          onChange={(e) => onChange("address", e.target.value)}
+        />
+      </Field>
+      <Field label="Observações (opcional)">
         <textarea
+          readOnly={readOnly}
           value={client.notes ?? ""}
           onChange={(e) => onChange("notes", e.target.value)}
         />
@@ -327,7 +267,10 @@ export default function App({
 }) {
   const motion = useMotion();
   const [selectedClientId, setSelectedClientId] = useState("");
-  const [agendaFocus, setAgendaFocus] = useState<string>();
+  const [agendaFocus, setAgendaFocus] = useState<{
+    date: string;
+    id: string;
+  }>();
   const [clientSearch, setClientSearch] = useState("");
   const [commandOpen, setCommandOpen] = useState(false),
     [hasLoaded, setHasLoaded] = useState(false);
@@ -388,6 +331,7 @@ export default function App({
       new Map(entries.filter((e) => e.serviceId).map((e) => [e.serviceId, e])),
     [entries],
   );
+  const agendaMonth = month === "all" ? iso().slice(5, 7) : month;
   const cats = Array.from(
     new Set([
       ...categories,
@@ -524,7 +468,7 @@ export default function App({
       go("calendar");
       setYear(record.date.slice(0, 4));
       setMonth(record.date.slice(5, 7));
-      setAgendaFocus(record.id);
+      setAgendaFocus({ date: record.date, id: record.id });
       return;
     }
     if (source.kind === "payroll") {
@@ -576,7 +520,8 @@ export default function App({
     (client) => !client.archived || client.id === form.clientId,
   );
   const clientQuery = normalizeClientSearch(clientSearch.trim());
-  const phoneQuery = clientQuery.replace(/[\s()+.-]/g, "");
+  const phoneQuery =
+    normalizeClientPhone(clientSearch) || clientQuery.replace(/[\s()+.-]/g, "");
   const searchByPhone = /^\d+$/.test(phoneQuery);
   const matchingClients = clientQuery
     ? listedClients.filter(
@@ -586,7 +531,10 @@ export default function App({
               value && normalizeClientSearch(value).includes(clientQuery),
           ) ||
           (searchByPhone &&
-            (client.phone ?? "").replace(/\D/g, "").includes(phoneQuery)),
+            (
+              normalizeClientPhone(client.phone) ||
+              (client.phone ?? "").replace(/\D/g, "")
+            ).includes(phoneQuery)),
       )
     : listedClients;
   const expenses = expenseSummary(entries, year, month);
@@ -600,6 +548,16 @@ export default function App({
   const agendaClient = agendaEditor
     ? clients.find((client) => client.id === form.clientId)
     : undefined;
+  const newClientPhone = normalizeClientPhone(form.newClient?.phone);
+  const matchingPhone = newClientPhone
+    ? clients.filter(
+        (client) =>
+          !client.archived &&
+          normalizeClientPhone(client.phone) === newClientPhone,
+      )
+    : [];
+  const existingPhoneClient =
+    matchingPhone.length === 1 ? matchingPhone[0] : undefined;
   const agendaSingleItem = agendaEditor && form.items.length === 1;
   const agendaAction = editor?.agendaAction;
   const ServiceItemGroup = agendaEditor ? "details" : "div";
@@ -762,7 +720,12 @@ export default function App({
       scope: "one",
       ...d,
       ...preset,
-      ...(kind === "client" && d.cpf ? { cpf: formatCpf(d.cpf) } : {}),
+      ...(kind === "client"
+        ? {
+            phone: formatClientPhone(d.phone),
+            address: clientAddress(d as Client),
+          }
+        : {}),
       ...(["entry", "recurrence"].includes(kind)
         ? {
             amount: dec(d.amount ?? preset.amount),
@@ -799,16 +762,27 @@ export default function App({
         : {}),
     });
   }
-  function addAgendaService() {
-    const today = iso();
-    const period = year + "-" + (month === "all" ? today.slice(5, 7) : month);
+  function addAgendaService(date: string) {
     open("service", undefined, {
       agenda: true,
       status: "Agendado",
-      date: today.startsWith(period) ? today : period + "-01",
+      date,
       clientChoice: "new",
       newClient: { name: "", creationId: crypto.randomUUID() },
     });
+  }
+  function chooseServiceClient(value: string) {
+    const isNew = value === "new";
+    const newClient = isNew
+      ? { name: "", creationId: crypto.randomUUID() }
+      : undefined;
+    setForm((current) => ({
+      ...current,
+      clientChoice: isNew ? "new" : "",
+      clientId: isNew ? "" : value,
+      newClient,
+      clientUpdate: undefined,
+    }));
   }
   const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
   async function submit(e: React.FormEvent) {
@@ -882,8 +856,8 @@ export default function App({
         setEditor(null);
         if (agendaEditor && data.date) {
           setYear(data.date.slice(0, 4));
-          if (month !== "all" || !data.date.startsWith(year))
-            setMonth(data.date.slice(5, 7));
+          setMonth(data.date.slice(5, 7));
+          setAgendaFocus({ date: data.date, id: editor.id ?? editor.createId });
         }
         await refresh();
       };
@@ -1243,13 +1217,7 @@ export default function App({
           aria-busy={loading}
         >
           {page !== "assistant" && (
-            <div
-              className={
-                page === "calendar"
-                  ? "page-heading agenda-page-heading"
-                  : "page-heading"
-              }
-            >
+            <div className="page-heading">
               <div>
                 <h1>{nav.find((n) => n[0] === page)?.[1]}</h1>
                 <p>
@@ -1262,7 +1230,7 @@ export default function App({
                             services:
                               "Cadastre clientes e acompanhe seus serviços e recebimentos.",
                             calendar:
-                              "Acompanhe serviços, confirmações e recebimentos mês a mês.",
+                              "Organize os serviços fechados e confirme a execução no dia.",
                             fixed:
                               "Organize as contas que se repetem todos os meses.",
                             vehicles:
@@ -1286,29 +1254,24 @@ export default function App({
                       <option key={y}>{y}</option>
                     ))}
                   </select>
-                  {page !== "calendar" && (
-                    <select
-                      aria-label="Mês"
-                      value={month}
-                      onChange={(e) => setMonth(e.target.value)}
-                    >
+                  <select
+                    aria-label="Mês"
+                    value={page === "calendar" ? agendaMonth : month}
+                    onChange={(e) => setMonth(e.target.value)}
+                  >
+                    {page !== "calendar" && (
                       <option value="all">Ano completo</option>
-                      {months.map((m, i) => (
-                        <option value={String(i + 1).padStart(2, "0")} key={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                    )}
+                    {months.map((m, i) => (
+                      <option value={String(i + 1).padStart(2, "0")} key={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <button
-                  className="primary"
-                  onClick={
-                    page === "calendar" ? addAgendaService : () => open("entry")
-                  }
-                >
+                <button className="primary" onClick={() => open("entry")}>
                   <Plus size={18} />
-                  {page === "calendar" ? "Agendar serviço" : "Novo lançamento"}
+                  Novo lançamento
                 </button>
               </div>
             </div>
@@ -1382,10 +1345,12 @@ export default function App({
           )}
           {page === "calendar" && (
             <ServiceCalendar
-              key={agendaFocus ?? "agenda"}
-              focusedService={agendaFocus}
-              year={year}
-              month={month}
+              key={
+                agendaFocus ? agendaFocus.date + ":" + agendaFocus.id : "agenda"
+              }
+              initialDate={agendaFocus?.date}
+              period={year + "-" + agendaMonth}
+              today={iso()}
               services={services}
               clients={
                 new Map(
@@ -1397,17 +1362,20 @@ export default function App({
               }
               entries={serviceEntries}
               loading={loading}
-              onMonth={setMonth}
-              onEdit={(service, action) =>
+              onPeriod={(nextYear, nextMonth) => {
+                setYear(nextYear);
+                setMonth(nextMonth);
+              }}
+              onCreate={addAgendaService}
+              onEdit={(service, nextStatus) =>
                 open(
                   "service",
                   service,
-                  action === "confirm"
-                    ? { status: "Concluído" }
-                    : action === "settle"
-                      ? { paymentAction: "settle" }
-                      : {},
+                  nextStatus ? { status: nextStatus } : {},
                 )
+              }
+              onSettle={(service) =>
+                open("service", service, { paymentAction: "settle" })
               }
             />
           )}
@@ -2179,7 +2147,7 @@ export default function App({
                         <input
                           type="search"
                           aria-label="Pesquisar clientes"
-                          placeholder="Nome, apelido ou contato"
+                          placeholder="Telefone ou nome"
                           value={clientSearch}
                           onChange={(e) => setClientSearch(e.target.value)}
                         />
@@ -2195,7 +2163,10 @@ export default function App({
                         <span>
                           {c.name}
                           <small>
-                            {[c.nickname, c.phone || c.contact]
+                            {[
+                              formatClientPhone(c.phone) || c.contact,
+                              c.nickname,
+                            ]
                               .filter(Boolean)
                               .join(" · ")}
                           </small>
@@ -3143,7 +3114,12 @@ export default function App({
           <form onSubmit={submit} className="editor-form">
             <div className="form-content">
               {editor?.kind === "client" && (
-                <ClientFields client={form} onChange={set} autoFocus />
+                <ClientFields
+                  client={form}
+                  onChange={set}
+                  requiredDetails={!editor.id}
+                  autoFocus
+                />
               )}
               {editor &&
                 ["vehicle", "employee", "category"].includes(editor.kind) && (
@@ -3525,20 +3501,9 @@ export default function App({
                       <select
                         required
                         value={form.clientChoice || form.clientId}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          const newClient =
-                            value === "new"
-                              ? { name: "", creationId: crypto.randomUUID() }
-                              : undefined;
-                          setForm((f) => ({
-                            ...f,
-                            clientChoice: value === "new" ? "new" : "",
-                            clientId: value === "new" ? "" : value,
-                            newClient,
-                            clientUpdate: undefined,
-                          }));
-                        }}
+                        onChange={(event) =>
+                          chooseServiceClient(event.target.value)
+                        }
                       >
                         <option value="">Selecione um cliente</option>
                         <option value="new">Cadastrar novo cliente…</option>
@@ -3546,71 +3511,62 @@ export default function App({
                           .filter((c) => !c.archived || c.id === form.clientId)
                           .map((c) => (
                             <option key={c.id} value={c.id}>
-                              {c.name}
+                              {[formatClientPhone(c.phone), c.name]
+                                .filter(Boolean)
+                                .join(" · ")}
                             </option>
                           ))}
                       </select>
                     </Field>
                     {!agendaEditor && serviceStatusField}
                   </div>
-                  {agendaEditor && (form.newClient || agendaClient) && (
-                    <div className="form-grid">
-                      {(
-                        [
-                          ["name", "Nome do cliente"],
-                          ["cpf", "CPF"],
-                        ] as const
-                      ).map(([key, label]) => (
-                        <Field label={label} key={key}>
-                          <input
-                            required={key === "name"}
-                            readOnly={!!agendaClient?.archived}
-                            inputMode={key === "cpf" ? "numeric" : undefined}
-                            maxLength={key === "cpf" ? 14 : undefined}
-                            value={
-                              form.newClient?.[key] ??
-                              form.clientUpdate?.[key] ??
-                              (key === "cpf"
-                                ? formatCpf(agendaClient?.cpf)
-                                : agendaClient?.name) ??
-                              ""
-                            }
-                            onChange={(event) => {
-                              const value = event.target.value;
-                              setForm((f) =>
-                                f.newClient
-                                  ? {
-                                      ...f,
-                                      newClient: {
-                                        ...f.newClient,
-                                        [key]: value,
-                                      },
-                                    }
-                                  : {
-                                      ...f,
-                                      clientUpdate: {
-                                        ...f.clientUpdate,
-                                        [key]: value,
-                                      },
-                                    },
-                              );
-                            }}
-                          />
-                        </Field>
-                      ))}
-                    </div>
-                  )}
-                  {form.clientChoice === "new" && !agendaEditor && (
-                    <ClientFields
-                      client={form.newClient}
-                      nameLabel="Nome do novo cliente"
-                      onChange={(key, value) =>
-                        setForm((f) => ({
-                          ...f,
-                          newClient: { ...f.newClient, [key]: value },
-                        }))
-                      }
-                    />
+                  {(form.newClient || agendaClient) && (
+                    <fieldset className="service-receipt">
+                      <legend>Dados do cliente</legend>
+                      <ClientFields
+                        client={
+                          form.newClient ?? {
+                            ...agendaClient,
+                            phone: formatClientPhone(agendaClient?.phone),
+                            address: clientAddress(
+                              agendaClient as Client | undefined,
+                            ),
+                            ...form.clientUpdate,
+                          }
+                        }
+                        requiredDetails={!!form.newClient}
+                        readOnly={!!agendaClient?.archived}
+                        onChange={(key, value) =>
+                          setForm((current) =>
+                            current.newClient
+                              ? {
+                                  ...current,
+                                  newClient: {
+                                    ...current.newClient,
+                                    [key]: value,
+                                  },
+                                }
+                              : {
+                                  ...current,
+                                  clientUpdate: {
+                                    ...current.clientUpdate,
+                                    [key]: value,
+                                  },
+                                },
+                          )
+                        }
+                      />
+                      {existingPhoneClient && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            chooseServiceClient(existingPhoneClient.id)
+                          }
+                        >
+                          Usar cadastro de {existingPhoneClient.name}
+                        </button>
+                      )}
+                    </fieldset>
                   )}
                   {agendaEditor ? (
                     <Field label="Endereço do serviço">
@@ -3618,6 +3574,8 @@ export default function App({
                         value={form.address}
                         onChange={(event) => set("address", event.target.value)}
                         placeholder={
+                          form.newClient?.address ||
+                          form.clientUpdate?.address ||
                           clientAddress(agendaClient as Client | undefined) ||
                           "Rua, número e bairro"
                         }
@@ -3966,21 +3924,6 @@ export default function App({
                       </Field>
                     )}
                   </details>
-                  {agendaEditor && form.clientChoice === "new" && (
-                    <details className="form-details">
-                      <summary>Mais dados do cliente</summary>
-                      <ClientFields
-                        client={form.newClient}
-                        extraOnly
-                        onChange={(key, value) =>
-                          setForm((f) => ({
-                            ...f,
-                            newClient: { ...f.newClient, [key]: value },
-                          }))
-                        }
-                      />
-                    </details>
-                  )}
                 </>
               )}
               {editor?.kind === "recurrence" && (

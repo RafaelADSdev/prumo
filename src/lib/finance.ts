@@ -108,6 +108,7 @@ export const schemas = {
     cpf: cpf.optional(),
     nickname: text.default(""),
     phone: text.default(""),
+    address: text.optional(),
     street: text.default(""),
     number: text.default(""),
     complement: text.default(""),
@@ -184,17 +185,33 @@ export const schemas = {
 };
 export type Client = z.infer<typeof schemas.client> & { id: string };
 export type Service = z.infer<typeof schemas.service> & { id: string };
-export function clientAddress(client?: Client) {
+export function normalizeClientPhone(value = "") {
+  const input = value.trim();
+  if (!/^(?:\+55)?[\d().\s-]+$/.test(input)) return "";
+  const digits = input.replace(/\D/g, "");
+  const hasCountryCode =
+    input.startsWith("+55") || (digits.length > 11 && digits.startsWith("55"));
+  const local = hasCountryCode ? digits.slice(2) : digits;
+  return /^[1-9]\d{9,10}$/.test(local) ? local : "";
+}
+export function formatClientPhone(value = "") {
+  const phone = normalizeClientPhone(value);
+  return phone.replace(/^(\d{2})(\d{4,5})(\d{4})$/, "($1) $2-$3") || value;
+}
+export function clientAddress(client?: Omit<Client, "id">) {
   if (!client) return "";
-  return [
-    [client.street, client.number].filter(Boolean).join(", "),
-    client.complement,
-    client.neighborhood,
-    [client.city, client.state].filter(Boolean).join(" / "),
-    client.zipCode,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  return (
+    client.address?.trim() ||
+    [
+      [client.street, client.number].filter(Boolean).join(", "),
+      client.complement,
+      client.neighborhood,
+      [client.city, client.state].filter(Boolean).join(" / "),
+      client.zipCode,
+    ]
+      .filter(Boolean)
+      .join(" · ")
+  );
 }
 export const serviceInputSchema = schemas.service.extend({
   newClient: schemas.client
@@ -203,7 +220,13 @@ export const serviceInputSchema = schemas.service.extend({
     .optional(),
   newClientName: text.trim().default(""),
   clientUpdate: z
-    .object({ name: text.trim().min(1).optional(), cpf: cpf.optional() })
+    .object({
+      name: text.trim().min(1).optional(),
+      cpf: cpf.optional(),
+      phone: text.optional(),
+      address: text.optional(),
+      notes: text.optional(),
+    })
     .optional(),
 });
 export function formatCpf(value = "") {
